@@ -1,2 +1,8 @@
 credentials.local.md
 *.log
+webapp/node_modules/
+webapp/data/open_bids.json
+webapp/data/mybid_list.json
+webapp/server.log
+webapp/kakao.local.md
+webapp/data/kakao_token.json

@@ -2,6 +2,8 @@
 
 이 프로젝트에 대해 Claude Code가 알아야 할 내용을 적어두는 곳입니다.
 
+> **먼저 `PROJECT_STATE.md`를 읽으세요.** 데이터 파이프라인/통계 모델/웹앱 아키텍처/현재 미해결 이슈를 한 번에 파악할 수 있는 종합 스냅샷입니다. 이 파일(`CLAUDE.md`)은 짧은 포인터 위주이고, 세부 시행착오 이력은 `PROGRESS.md`에 세션별로 있습니다.
+
 ## 프로젝트 개요
 
 (주)케이알에스건설이 보유한 면허(지반조성포장/토공, 상하수도설비)를 기준으로, 공공 토목공사 입찰에서 낙찰 확률이 높은 입찰가(사정율/투찰률)를 추정하는 분석 프로젝트입니다. 아이건설넷(igunsul.net)의 과거 낙찰 데이터와 우리 회사의 시공능력평가액·신용등급·재무비율을 결합해 "이번 공고에 얼마로 투찰해야 낙찰 확률이 높은가"에 답하는 것이 최종 목표입니다.
@@ -16,8 +18,9 @@
 ## 데이터 소스 및 제약사항
 
 - 1차 데이터 소스: 아이건설넷(https://www.igunsul.net) — 과거 입찰/낙찰 정보, 지역·업종·실적별 입찰 가능 금액 정보 보유.
-- **중요 제약**: Claude Code는 로그인 세션이 필요한 사이트를 자동으로 크롤링할 수 없습니다 (WebFetch는 인증되지 않은 공개 URL만 처리 가능). 아이건설넷 데이터를 분석하려면 사용자가 직접 로그인 후 자료를 다운로드(엑셀/CSV/PDF)하거나 화면을 캡처해서 `data/` 폴더에 넣어주는 방식으로 진행합니다.
-- 로그인 정보는 `credentials.local.md`에 보관 (git에는 커밋하지 않음, `.gitignore` 처리됨).
+- WebFetch는 로그인 세션을 유지할 수 없어 직접 사용 불가하지만, **Playwright MCP로 ID/PW 로그인 자동화 및 낙찰정보 조건검색·데이터 추출에 성공** (2026-07-04). 로그인 정보는 `credentials.local.md`에 보관 (git에는 커밋하지 않음, `.gitignore` 처리됨). 공동인증서 로그인은 여전히 자동화 불가.
+- **주의**: Playwright MCP 도구는 대화 세션 시작 시점에 도구 목록이 고정되므로, 이 도구가 안 보이면 새 세션을 열어야 함.
+- 낙찰정보 조건검색은 지역 단일선택만 지원 + 전국 기준으로는 주당 500건씩 쏟아져 전량 수집이 비현실적 → **부산+경남 지역으로 한정**해서 수집 중(회사 소재지 기준 실제 입찰권). 수집된 원자료는 `data/raw/`에 CSV로 보관.
 
 ## 회사 핵심 지표 (최신 확인서 기준)
 
@@ -29,7 +32,22 @@
 
 ## 실행 방법
 
-별도 실행 환경 없음 (분석/문서 작업 위주). 데이터가 쌓이면 분석 스크립트(Python 등) 추가 예정.
+`webapp/` 폴더에 Node.js/Express 기반 로컬 대시보드 웹앱이 있습니다.
+
+```
+cd webapp
+npm install                      # 최초 1회 (완료됨)
+npx playwright install chromium  # 최초 1회 (완료됨)
+npm start                        # http://localhost:4173
+```
+
+- `lib/analysis.js`: `data/raw/*.csv` 낙찰 이력을 로딩해 통계/입찰가 추천 모델 계산 (가중치·모델 정의는 PROGRESS.md 2026-07-04 세션3 참고). 경남 시/군 단위(관내 제한 추정) 발주처는 `lib/localFilter.js`로 전량 제외 (default-exclude/화이트리스트 방식 — 지명 문자열 겹침 버그 이력 있으니 새 화이트리스트 패턴 추가 시 PROGRESS.md 2026-07-05 기록 참고).
+- **TOP5 우수 업체 분석** (2026-07-05 완성): 낙찰건수 10건 이상 업체 중 건수+낙찰률 종합순위 TOP5의 낙찰이력을 대시보드 하단에 표시 (`getTopCompanies`/`predictCompanyBid` in `lib/analysis.js`). 이 TOP5 업체의 예측 입찰가는 별도 섹션이 아니라 "맞춤정보"/"진행중 입찰" 리스트의 항목별 클릭-상세패널 안에 함께 표시됨.
+- **맞춤정보 리스트** (2026-07-05 추가): 아이건설넷 `/mybid`(계정에 저장된 검색조건 기준 자동매칭 목록)를 `lib/scraper.js`의 `scrapeMyBidList()`로 함께 스크래핑, `data/mybid_list.json`에 캐시(gitignore). "진행중 입찰 항목" 바로 위에 표시되며 동일한 클릭-상세분석 UI 공유.
+- `lib/scraper.js`: 아이건설넷 로그인 + 진행중 입찰(`/bid`) 실시간 스크래핑 (playwright npm 패키지, MCP와 별개 설치).
+- `public/`: 바닐라 JS + 손수 작성 SVG 차트 대시보드.
+- `data/open_bids.json`: 스크래핑 캐시 (gitignore 처리, `/api/open-bids/refresh` 호출 시 갱신).
+- **카카오톡 "나에게 보내기" 자동 알림** (2026-07-05 구축, PROGRESS.md 참고): `lib/kakao.js` + `lib/notifyMessage.js` + `scripts/notify.js`. 설정은 `webapp/kakao.local.md`(REST API 키, gitignore)와 `webapp/data/kakao_token.json`(OAuth 토큰, gitignore)에 있음. Windows 작업 스케줄러에 `BidAnalysis-KakaoNotify` 태스크로 매일 08:00 등록했으나 **로그 파일 생성 여부가 아직 미검증** — 다음 세션에서 `webapp/notify.log` 확인부터 시작할 것.
 
 ## 참고 사항
 

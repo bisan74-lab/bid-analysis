@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>케이알에스건설 입찰 분석 대시보드</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div>
+      <h1>케이알에스건설 입찰 분석 대시보드</h1>
+      <p>아이건설넷 낙찰 이력(부산·경남, 지반조성.포장/상.하수도, 최근 3년) 기반 분석</p>
+    </div>
+    <button id="refresh-btn" class="refresh-btn">실시간 새로고침</button>
+  </header>
+
+  <section>
+    <h2>핵심 지표</h2>
+    <div id="stat-tiles" class="stat-grid"></div>
+  </section>
+
+  <section>
+    <h2>맞춤정보 등록 항목</h2>
+    <p class="section-sub" id="mybid-updated">불러오는 중…</p>
+    <div id="mybid-list" class="bid-list"></div>
+    <p class="section-sub" style="margin-top:8px">아이건설넷 계정에 저장된 맞춤정보(종목/지역 설정) 기준으로 자동 매칭된 공고 목록입니다.</p>
+  </section>
+
+  <section>
+    <h2>진행중 입찰 항목 (실시간)</h2>
+    <p class="section-sub" id="open-bids-updated">불러오는 중…</p>
+    <div id="open-bids-list" class="bid-list"></div>
+    <p class="section-sub" style="margin-top:8px">항목을 클릭하면 과거 데이터 기반 추천 입찰가(낙찰 확률 100/80/65/50%, 안정회귀형/공격밀집형, TOP5 업체 예측 입찰가)를 확인할 수 있습니다.</p>
+  </section>
+
+  <section>
+    <h2>입찰가 추천 방법론</h2>
+    <div class="methodology">
+      과거 낙찰 사례를 <b>최근1년 / 1~2년전 / 2~3년전</b> 3개 구간으로 나누고, 반감기 1년의 지수가중으로 최신 데이터에 더 높은 비중을 둡니다.
+      <div class="weight-chips" id="methodology-weights"></div>
+      <div style="margin-top:10px">
+        각 진행중 공고의 <b>기초금액</b>에 동일 업종군의 가중평균 <b>예가율(예정가격÷기초금액)</b>을 곱해 예정가격을 추정하고,
+        가중치를 반영한 과거 <b>낙찰률(1순위금액÷예정가격)</b>의 백분위수를 곱해 확률 구간별(100/80/65/50%) 추천 입찰가를 계산합니다.
+      </div>
+      <div style="margin-top:10px">
+        추가로 두 가지 전략 구간도 함께 제시합니다:
+        <b>안정회귀형</b>은 가중평균 낙찰률(평균 회귀 기대 중심값) ± 표준오차(SEM)로 산출한 안정적인 밴드이고,
+        <b>공격밀집형</b>은 과거 낙찰률 히스토그램(0.25%p 단위)에서 실제로 가장 많은 낙찰이 몰린 구간의 경계를 그대로 사용하는, 평균과 무관하게 최다빈도를 노리는 밴드입니다.
+        (모두 참고용 통계적 추정치이며, 실제 낙찰을 보장하지 않습니다. 경남 지역은 시·군 단위(관내 제한 추정) 발주처를 전량 제외하고, 도 단위·전국 단위 발주처만 분석에 반영했습니다.)
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>낙찰 이력 분석</h2>
+    <p class="section-sub">2023-07 ~ 2026-07, 부산·경남, 지반조성.포장/상.하수도 업종 낙찰 건 전수 분석</p>
+    <div class="charts-grid">
+      <div class="card">
+        <p class="chart-title">연차별 표본 건수</p>
+        <p class="chart-sub">입찰가 추천 모델의 가중치 구간</p>
+        <div id="chart-bucket"></div>
+      </div>
+      <div class="card">
+        <p class="chart-title">지역별 건수</p>
+        <p class="chart-sub">부산 / 경남</p>
+        <div id="chart-region"></div>
+      </div>
+      <div class="card">
+        <p class="chart-title">업종별 건수</p>
+        <p class="chart-sub">지반조성.포장 / 상.하수도 / 두 업종 중복 공고</p>
+        <div id="chart-category"></div>
+      </div>
+      <div class="card">
+        <p class="chart-title">월별 낙찰 건수 추이</p>
+        <p class="chart-sub">2023-07 ~ 2026-07 (YY-MM)</p>
+        <div id="chart-month"></div>
+      </div>
+      <div class="card">
+        <p class="chart-title">낙찰률 분포</p>
+        <p class="chart-sub">(1순위금액 ÷ 예정가격 − 1) × 100, 0.5%p 단위</p>
+        <div id="chart-winratio"></div>
+      </div>
+      <div class="card">
+        <p class="chart-title">공사 규모(기초금액) 분포</p>
+        <p class="chart-sub">구간별 건수</p>
+        <div id="chart-amount"></div>
+      </div>
+      <div class="card">
+        <p class="chart-title">발주처 TOP 15</p>
+        <p class="chart-sub">낙찰 건수 기준</p>
+        <div id="chart-orgs"></div>
+      </div>
+      <div class="card">
+        <p class="chart-title">시·군·구 TOP 20</p>
+        <p class="chart-sub">낙찰 건수 기준</p>
+        <div id="chart-locals"></div>
+      </div>
+    </div>
+
+    <div class="charts-grid" style="margin-top:16px">
+      <div class="card">
+        <p class="chart-title">참여업체수 vs 낙찰률 (산점도)</p>
+        <p class="chart-sub" id="scatter-sub">최근 1년 표본</p>
+        <div id="chart-scatter"></div>
+      </div>
+      <div class="card">
+        <p class="chart-title">참여업체수 구간별 평균 낙찰률</p>
+        <p class="chart-sub">전체 3년치, 연차 가중치 반영 — 경쟁 강도에 따라 낙찰가가 어떻게 움직이는지</p>
+        <div id="chart-participant-bins"></div>
+        <p class="section-sub" id="participant-bins-note" style="margin-top:8px"></p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>TOP5 우수 업체 분석</h2>
+    <p class="section-sub">낙찰건수 10건 이상 업체 중, 낙찰건수와 평균낙찰률(예정가격 대비 낙찰금액 비율) 둘 다 상위권인 업체 종합순위 TOP5. 각 업체가 실제 낙찰받은 금액(=입찰가)이 발주처 예정가격과 평균적으로 얼마나 차이나는지 표시했습니다. 위의 "맞춤정보"/"진행중 입찰" 항목을 클릭하면 이 TOP5 업체의 예측 입찰가도 함께 표시됩니다.</p>
+    <div id="top-companies-list" class="bid-list"></div>
+  </section>
+
+  <section>
+    <h2>원자료 (접근성용 표)</h2>
+    <button id="table-toggle" class="toggle-link">월별 원자료 표 보기</button>
+    <div id="raw-table-wrap" style="display:none;margin-top:10px" class="table-scroll">
+      <table class="data-table">
+        <thead><tr><th>월</th><th>낙찰 건수</th></tr></thead>
+        <tbody id="raw-table-body"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer class="page-footer">
+    데이터 출처: 아이건설넷(igunsul.net) · 내부 분석용 · 실제 투찰 결정은 최신 공고 조건을 반드시 재확인하세요.
+  </footer>
+</div>
+
+<div id="tooltip" class="tooltip"></div>
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+# 카카오 디벨로퍼스 앱 정보 (템플릿 — 실제 값을 채운 뒤 파일명을 kakao.local.md로 저장하세요)
+#
+# 카카오 디벨로퍼스(https://developers.kakao.com)에서 앱 생성 후:
+# 1. "앱 > 플랫폼 키" 페이지에서 REST API 키 카드를 클릭해 들어간 상세화면에서 Redirect URI 등록
+#    (등록 위치가 "카카오 로그인 > 일반"이 아니라 이쪽입니다 — 콘솔 UI 개편으로 위치가 바뀜)
+# 2. "카카오 로그인" 활성화 + "동의항목"에서 "카카오톡 메시지 전송" 동의 설정
+# 3. Client Secret은 "사용 안 함"으로 둘 것 (켜져 있으면 토큰 교환 시 KOE010 에러 발생)
+
+REST API 키: 여기에_실제_REST_API_키_붙여넣기
+
+Redirect URI: http://localhost:4173/oauth/kakao/callback
