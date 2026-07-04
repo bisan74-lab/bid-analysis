@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>(주)케이알에스건설 — 입찰가 분석 기초자료</title>
+<style>
+  .viz-root {
+    --surface-1:      #fcfcfb;
+    --page-plane:     #f9f9f7;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #898781;
+    --gridline:       #e1e0d9;
+    --baseline:       #c3c2b7;
+    --border:         rgba(11,11,11,0.10);
+
+    --series-1: #2a78d6; /* blue */
+    --series-2: #1baf7a; /* aqua */
+    --series-3: #eda100; /* yellow */
+    --series-4: #008300; /* green */
+
+    --status-good:     #0ca30c;
+    --status-warning:  #fab219;
+    --status-serious:  #ec835a;
+    --status-critical: #d03b3b;
+  }
+  @media (prefers-color-scheme: dark) {
+    .viz-root {
+      --surface-1:      #1a1a19;
+      --page-plane:     #0d0d0d;
+      --text-primary:   #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted:     #898781;
+      --gridline:       #2c2c2a;
+      --baseline:       #383835;
+      --border:         rgba(255,255,255,0.10);
+
+      --series-1: #3987e5;
+      --series-2: #199e70;
+      --series-3: #c98500;
+      --series-4: #008300;
+
+      --status-good:     #0ca30c;
+      --status-warning:  #fab219;
+      --status-serious:  #ec835a;
+      --status-critical: #d03b3b;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--page-plane);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    color: var(--text-primary);
+  }
+  .viz-root { display: block; padding: 32px 20px 80px; }
+  .wrap { max-width: 980px; margin: 0 auto; }
+
+  header.page-head { margin-bottom: 28px; }
+  header.page-head h1 { font-size: 22px; margin: 0 0 6px; }
+  header.page-head p { margin: 0; color: var(--text-secondary); font-size: 14px; }
+
+  .card {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 22px;
+    margin-bottom: 20px;
+  }
+  .card h2 {
+    font-size: 15px;
+    margin: 0 0 4px;
+    color: var(--text-primary);
+  }
+  .card .subtitle {
+    font-size: 12.5px;
+    color: var(--text-muted);
+    margin: 0 0 16px;
+  }
+
+  /* company info table */
+  table.info { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  table.info td { padding: 7px 4px; border-bottom: 1px solid var(--gridline); vertical-align: top; }
+  table.info td.k { color: var(--text-muted); width: 150px; white-space: nowrap; }
+  table.info tr:last-child td { border-bottom: none; }
+
+  /* KPI row */
+  .kpi-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .kpi-tile {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 18px;
+  }
+  .kpi-tile .label { font-size: 12.5px; color: var(--text-secondary); margin-bottom: 8px; }
+  .kpi-tile .value { font-size: 28px; font-weight: 600; line-height: 1; }
+  .kpi-tile .delta { font-size: 12px; margin-top: 8px; color: var(--text-secondary); }
+  .badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 2px 9px; border-radius: 999px; font-size: 12.5px; font-weight: 600;
+  }
+  .badge .dot { width: 7px; height: 7px; border-radius: 50%; }
+  .badge.b-good { color: var(--status-good); background: color-mix(in srgb, var(--status-good) 14%, transparent); }
+  .badge.b-warning { color: #8a5b00; background: color-mix(in srgb, var(--status-warning) 22%, transparent); }
+  .badge.b-serious { color: #8f3d1f; background: color-mix(in srgb, var(--status-serious) 20%, transparent); }
+  @media (prefers-color-scheme: dark) {
+    .badge.b-warning { color: var(--status-warning); }
+    .badge.b-serious { color: var(--status-serious); }
+  }
+
+  .table-toggle {
+    font-size: 12px; color: var(--text-secondary);
+    background: transparent; border: 1px solid var(--border); border-radius: 6px;
+    padding: 4px 10px; cursor: pointer; float: right; margin-top: -34px;
+  }
+  .table-toggle:hover { background: var(--gridline); }
+  .data-table { display: none; width: 100%; border-collapse: collapse; font-size: 12.5px; margin-top: 14px; }
+  .data-table.open { display: table; }
+  .data-table th, .data-table td {
+    text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--gridline);
+    font-variant-numeric: tabular-nums;
+  }
+  .data-table th:first-child, .data-table td:first-child { text-align: left; font-variant-numeric: normal; }
+  .data-table th { color: var(--text-muted); font-weight: 500; }
+
+  /* column chart (총액 비교) */
+  .col-chart { display: flex; align-items: flex-end; gap: 40px; height: 240px; padding: 0 10px 28px; position: relative; border-bottom: 1px solid var(--baseline); }
+  .col-chart .col { flex: 1; max-width: 140px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; }
+  .col-chart .col .cap { font-size: 13px; font-weight: 600; margin-bottom: 6px; white-space: nowrap; }
+  .col-chart .col .bar {
+    width: 56px; max-width: 24px * 2;
+    background: var(--series-1);
+    border-radius: 4px 4px 0 0;
+    cursor: pointer;
+    transition: filter .12s ease;
+  }
+  .col-chart .col .bar:hover, .col-chart .col .bar:focus { filter: brightness(1.12); outline: none; }
+  .col-chart .col .cat-label { font-size: 12.5px; color: var(--text-secondary); margin-top: 10px; text-align: center; max-width: 130px; }
+
+  /* stacked bar (구성요소) */
+  .stack-row { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+  .stack-row .row-label { width: 168px; font-size: 12.5px; color: var(--text-secondary); flex-shrink: 0; }
+  .stack-row .row-total { width: 84px; font-size: 12.5px; color: var(--text-muted); flex-shrink: 0; text-align: right; font-variant-numeric: tabular-nums; }
+  .stack-track { flex: 1; display: flex; height: 28px; border-radius: 4px; overflow: hidden; background: var(--gridline); }
+  .stack-seg { height: 100%; cursor: pointer; display: flex; align-items: center; justify-content: center; border-right: 2px solid var(--surface-1); }
+  .stack-seg:last-child { border-right: none; }
+  .stack-seg .seg-label { font-size: 11px; font-weight: 600; color: #fff; white-space: nowrap; padding: 0 6px; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 16px; }
+  .legend .item { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text-secondary); }
+  .legend .swatch { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+
+  /* credit rating timeline */
+  .rating-line { position: relative; height: 150px; margin: 10px 20px 0; }
+  .rating-line svg { width: 100%; height: 100%; overflow: visible; }
+  .rating-node-label { font-size: 12px; text-anchor: middle; }
+  .rating-date-label { font-size: 11px; fill: var(--text-muted); text-anchor: middle; }
+
+  /* yearly decline bars */
+  .year-chart { display: flex; align-items: flex-end; gap: 24px; height: 220px; padding: 0 10px 28px; border-bottom: 1px solid var(--baseline); }
+  .year-chart .col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; }
+  .year-chart .col .cap { font-size: 12.5px; font-weight: 600; margin-bottom: 6px; }
+  .year-chart .col .bar { width: 44px; background: var(--series-1); border-radius: 4px 4px 0 0; cursor: pointer; transition: filter .12s ease; }
+  .year-chart .col .bar:hover { filter: brightness(1.12); }
+  .year-chart .col .yr-label { font-size: 12.5px; color: var(--text-secondary); margin-top: 8px; }
+  .decline-callout {
+    display: inline-flex; align-items: center; gap: 6px; margin-top: 12px;
+    font-size: 13px; color: var(--status-critical); font-weight: 600;
+  }
+
+  .obs-list { margin: 0; padding-left: 18px; font-size: 13.5px; line-height: 1.65; color: var(--text-primary); }
+  .obs-list li { margin-bottom: 8px; }
+  .obs-list li:last-child { margin-bottom: 0; }
+
+  footer.page-foot { font-size: 12px; color: var(--text-muted); margin-top: 8px; line-height: 1.6; }
+
+  #tooltip {
+    position: fixed; pointer-events: none; z-index: 50;
+    background: var(--text-primary); color: var(--surface-1);
+    font-size: 12.5px; padding: 7px 10px; border-radius: 6px;
+    max-width: 240px; line-height: 1.5; opacity: 0; transform: translateY(4px);
+    transition: opacity .1s ease, transform .1s ease;
+  }
+  #tooltip.show { opacity: 1; transform: translateY(0); }
+  #tooltip strong { font-variant-numeric: tabular-nums; }
+
+  @media (max-width: 640px) {
+    .kpi-row { grid-template-columns: 1fr; }
+    .col-chart { gap: 16px; }
+    .stack-row { flex-wrap: wrap; }
+    .stack-row .row-label, .stack-row .row-total { width: auto; }
+  }
+</style>
+</head>
+<body>
+<div class="viz-root">
+<div class="wrap">
+
+  <header class="page-head">
+    <h1>(주)케이알에스건설 — 입찰가 분석 기초자료</h1>
+    <p>확인서 원자료 정리본 · 최종 갱신 2026-07-04</p>
+  </header>
+
+  <section class="card">
+    <h2>회사 개요</h2>
+    <p class="subtitle">제출 확인서 기준</p>
+    <table class="info">
+      <tr><td class="k">상호</td><td>(주)케이알에스건설</td></tr>
+      <tr><td class="k">대표자</td><td>박지선</td></tr>
+      <tr><td class="k">사업자등록번호</td><td>515-81-31362</td></tr>
+      <tr><td class="k">법인번호</td><td>174811-0043474</td></tr>
+      <tr><td class="k">소재지</td><td>부산광역시 수영구 광일로29번길 25 (광안동)</td></tr>
+      <tr><td class="k">보유 면허(업종)</td><td>지반조성포장(토공), 상하수도설비</td></tr>
+    </table>
+  </section>
+
+  <section class="kpi-row">
+    <div class="kpi-tile">
+      <div class="label">신용평가등급 (현재)</div>
+      <div class="value">C</div>
+      <div class="delta"><span class="badge b-serious"><span class="dot" style="background:var(--status-serious)"></span>1년간 2단계 하락</span></div>
+    </div>
+    <div class="kpi-tile">
+      <div class="label">부채비율</div>
+      <div class="value">52.06%</div>
+      <div class="delta">부채총계 308,234천원 / 자기자본 592,068천원</div>
+    </div>
+    <div class="kpi-tile">
+      <div class="label">유동비율</div>
+      <div class="value">712.06%</div>
+      <div class="delta">유동자산 755,819천원 / 유동부채 106,144천원</div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>신용평가등급 추이</h2>
+    <p class="subtitle">KFINCO 전문건설공제조합 정기평가 · 1년 새 B → CC → C로 하락</p>
+    <div class="rating-line">
+      <svg viewBox="0 0 600 150" preserveAspectRatio="none">
+        <line x1="60" y1="35" x2="540" y2="115" stroke="var(--gridline)" stroke-width="2"/>
+        <g class="rn" data-label="2024-07-24 정기평가" data-value="등급 B (양호)">
+          <circle cx="60" cy="35" r="7" fill="var(--status-good)" stroke="var(--surface-1)" stroke-width="2" style="cursor:pointer"/>
+          <text x="60" y="18" class="rating-node-label" fill="var(--text-primary)" font-weight="600">B</text>
+          <text x="60" y="140" class="rating-date-label">2024-07-24</text>
+        </g>
+        <g class="rn" data-label="2025-07-03 정기평가" data-value="등급 CC (주의)">
+          <circle cx="300" cy="75" r="7" fill="var(--status-warning)" stroke="var(--surface-1)" stroke-width="2" style="cursor:pointer"/>
+          <text x="300" y="58" class="rating-node-label" fill="var(--text-primary)" font-weight="600">CC</text>
+          <text x="300" y="140" class="rating-date-label">2025-07-03</text>
+        </g>
+        <g class="rn" data-label="2025-10-02 정기평가 (최신, 2026-07-31까지 유효)" data-value="등급 C (하락)">
+          <circle cx="540" cy="115" r="7" fill="var(--status-serious)" stroke="var(--surface-1)" stroke-width="2" style="cursor:pointer"/>
+          <text x="540" y="98" class="rating-node-label" fill="var(--text-primary)" font-weight="600">C</text>
+          <text x="540" y="140" class="rating-date-label">2025-10-02</text>
+        </g>
+      </svg>
+    </div>
+    <button class="table-toggle" data-target="tbl-rating">표로 보기</button>
+    <table class="data-table" id="tbl-rating">
+      <thead><tr><th>평가일자</th><th>등급</th><th>비고</th></tr></thead>
+      <tbody>
+        <tr><td>2024-07-24</td><td>B</td><td>-</td></tr>
+        <tr><td>2025-07-03</td><td>CC</td><td>-</td></tr>
+        <tr><td>2025-10-02</td><td>C</td><td>최신 · 2026-07-31까지 유효</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="card">
+    <h2>업종별 시공능력평가액 비교</h2>
+    <p class="subtitle">2025년도 시공능력평가확인서 기준 (단위: 천원)</p>
+    <button class="table-toggle" data-target="tbl-total">표로 보기</button>
+    <div class="col-chart">
+      <div class="col">
+        <div class="cap">9.28억원</div>
+        <div class="bar" style="height:49.4%" data-label="지반조성포장(토공)" data-value="927,892천원"></div>
+        <div class="cat-label">지반조성포장<br>(토공)</div>
+      </div>
+      <div class="col">
+        <div class="cap">18.77억원</div>
+        <div class="bar" style="height:100%" data-label="상하수도설비" data-value="1,877,206천원"></div>
+        <div class="cat-label">상하수도설비</div>
+      </div>
+    </div>
+    <table class="data-table" id="tbl-total">
+      <thead><tr><th>업종</th><th>시공능력평가액(천원)</th></tr></thead>
+      <tbody>
+        <tr><td>지반조성포장(토공)</td><td>927,892</td></tr>
+        <tr><td>상하수도설비</td><td>1,877,206</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="card">
+    <h2>시공능력평가액 구성</h2>
+    <p class="subtitle">업종별 구성 비율 (실적 / 경영 / 기술 / 신인도) · 경영·기술평가액은 전사 공통 지표</p>
+    <button class="table-toggle" data-target="tbl-compose">표로 보기</button>
+
+    <div class="stack-row">
+      <div class="row-label">지반조성포장(토공)</div>
+      <div class="stack-track">
+        <div class="stack-seg" style="width:3.57%; background:var(--series-1)" data-label="실적평가액" data-value="33,084천원 (3.6%)"></div>
+        <div class="stack-seg" style="width:39.63%; background:var(--series-2)" data-label="경영평가액" data-value="367,792천원 (39.6%)"><span class="seg-label">경영 39.6%</span></div>
+        <div class="stack-seg" style="width:56.55%; background:var(--series-3)" data-label="기술능력평가액" data-value="524,644천원 (56.6%)"><span class="seg-label">기술 56.6%</span></div>
+        <div class="stack-seg" style="width:0.26%; background:var(--series-4)" data-label="신인도평가액" data-value="2,372천원 (0.3%)"></div>
+      </div>
+      <div class="row-total">927,892</div>
+    </div>
+
+    <div class="stack-row">
+      <div class="row-label">상하수도설비</div>
+      <div class="stack-track">
+        <div class="stack-seg" style="width:52.45%; background:var(--series-1)" data-label="실적평가액" data-value="984,489천원 (52.5%)"><span class="seg-label">실적 52.5%</span></div>
+        <div class="stack-seg" style="width:19.59%; background:var(--series-2)" data-label="경영평가액" data-value="367,792천원 (19.6%)"><span class="seg-label">경영 19.6%</span></div>
+        <div class="stack-seg" style="width:27.95%; background:var(--series-3)" data-label="기술능력평가액" data-value="524,644천원 (28.0%)"><span class="seg-label">기술 28.0%</span></div>
+        <div class="stack-seg" style="width:0.01%; background:var(--series-4)" data-label="신인도평가액" data-value="281천원 (0.01%)"></div>
+      </div>
+      <div class="row-total">1,877,206</div>
+    </div>
+
+    <div class="legend">
+      <div class="item"><span class="swatch" style="background:var(--series-1)"></span>실적평가액</div>
+      <div class="item"><span class="swatch" style="background:var(--series-2)"></span>경영평가액</div>
+      <div class="item"><span class="swatch" style="background:var(--series-3)"></span>기술능력평가액</div>
+      <div class="item"><span class="swatch" style="background:var(--series-4)"></span>신인도평가액</div>
+    </div>
+
+    <table class="data-table" id="tbl-compose">
+      <thead><tr><th>업종</th><th>실적평가액</th><th>경영평가액</th><th>기술능력평가액</th><th>신인도평가액</th><th>합계</th></tr></thead>
+      <tbody>
+        <tr><td>지반조성포장(토공)</td><td>33,084</td><td>367,792</td><td>524,644</td><td>2,372</td><td>927,892</td></tr>
+        <tr><td>상하수도설비</td><td>984,489</td><td>367,792</td><td>524,644</td><td>281</td><td>1,877,206</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="card">
+    <h2>상하수도설비 연도별 실적 추이</h2>
+    <p class="subtitle">가중평균에 반영되는 연차별 실적 (단위: 천원) · 매년 큰 폭으로 감소</p>
+    <button class="table-toggle" data-target="tbl-yearly">표로 보기</button>
+    <div class="year-chart">
+      <div class="col">
+        <div class="cap">2,294,378</div>
+        <div class="bar" style="height:100%" data-label="2022년 실적" data-value="2,294,378천원"></div>
+        <div class="yr-label">2022</div>
+      </div>
+      <div class="col">
+        <div class="cap">1,561,621</div>
+        <div class="bar" style="height:68.06%" data-label="2023년 실적" data-value="1,561,621천원"></div>
+        <div class="yr-label">2023</div>
+      </div>
+      <div class="col">
+        <div class="cap">685,096</div>
+        <div class="bar" style="height:29.86%" data-label="2024년 실적" data-value="685,096천원"></div>
+        <div class="yr-label">2024</div>
+      </div>
+    </div>
+    <div class="decline-callout">▼ 70.1% (2022 → 2024)</div>
+    <table class="data-table" id="tbl-yearly">
+      <thead><tr><th>연도</th><th>실적(천원)</th></tr></thead>
+      <tbody>
+        <tr><td>2022</td><td>2,294,378</td></tr>
+        <tr><td>2023</td><td>1,561,621</td></tr>
+        <tr><td>2024</td><td>685,096</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="card">
+    <h2>관찰 포인트</h2>
+    <ol class="obs-list">
+      <li><strong>상하수도설비 실적이 매년(2022→2023→2024) 큰 폭으로 감소</strong>(22.9억 → 15.6억 → 6.9억원). 실적평가액이 시공능력평가액을 좌우하는 핵심 변수이므로, 최근 실적 하락이 내년도 평가액에도 하락 압력으로 작용할 가능성이 있음.</li>
+      <li><strong>신용등급이 1년 새 B → CC → C로 하락.</strong> 신용등급은 적격심사 신인도 배점 및 계약보증서 발급 조건(보증료율)에 영향을 줄 수 있어, 등급 하락분을 투찰 전략에 반영할 필요가 있음.</li>
+      <li>경영평가액·기술능력평가액은 두 업종에 공통 적용되며, 실적평가액만 업종별로 상이 → 두 업종의 시공능력평가액 격차(9.3억 vs 18.8억)는 사실상 실적평가액 차이에서 발생함.</li>
+    </ol>
+  </section>
+
+  <footer class="page-foot">
+    출처: 경영상태등의 확인서(2024.12.31 정기결산 + 2025.04.11 협회 신고자료), 신용평가등급 확인서(KFINCO 전문건설공제조합, 관리번호 2026R01-560015706), 2025년도 시공능력평가확인서 2건(지반조성포장·상하수도설비).<br>
+    원자료: <code>data/company-profile.md</code>, <code>data/license-capacity.csv</code>
+  </footer>
+
+</div>
+</div>
+
+<div id="tooltip"></div>
+
+<script>
+(function () {
+  var tooltip = document.getElementById('tooltip');
+
+  function showTooltip(el, evt) {
+    var label = el.getAttribute('data-label');
+    var value = el.getAttribute('data-value');
+    if (!label && !value) return;
+    tooltip.textContent = '';
+    var labelNode = document.createTextNode(label || '');
+    var strong = document.createElement('strong');
+    strong.textContent = value || '';
+    tooltip.appendChild(labelNode);
+    if (label && value) tooltip.appendChild(document.createElement('br'));
+    tooltip.appendChild(strong);
+    tooltip.classList.add('show');
+    moveTooltip(evt);
+  }
+  function moveTooltip(evt) {
+    var x = evt.clientX + 14;
+    var y = evt.clientY + 14;
+    if (x + 240 > window.innerWidth) x = evt.clientX - 254;
+    tooltip.style.left = x + 'px';
+    tooltip.style.top = y + 'px';
+  }
+  function hideTooltip() {
+    tooltip.classList.remove('show');
+  }
+
+  document.querySelectorAll('[data-label][data-value], .rn').forEach(function (el) {
+    var target = el.classList.contains('rn') ? el : el;
+    target.addEventListener('mouseenter', function (evt) { showTooltip(el, evt); });
+    target.addEventListener('mousemove', moveTooltip);
+    target.addEventListener('mouseleave', hideTooltip);
+  });
+
+  document.querySelectorAll('.table-toggle').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var id = btn.getAttribute('data-target');
+      var tbl = document.getElementById(id);
+      var open = tbl.classList.toggle('open');
+      btn.textContent = open ? '표 닫기' : '표로 보기';
+    });
+  });
+})();
+</script>
+
+</body>
+</html>
