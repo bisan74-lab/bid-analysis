@@ -444,7 +444,7 @@ async function loadItemAnalysis(analysisEl, postingId) {
   if (analysisEl.dataset.loaded === '1') return;
   analysisEl.innerHTML = '<div class="empty-note">분석 중…</div>';
   try {
-    const res = await fetch(`/api/open-bids/${encodeURIComponent(postingId)}/analysis`);
+    const res = await fetch(`/api/analysis/${encodeURIComponent(postingId)}`);
     const data = await res.json();
     if (data.error) { analysisEl.innerHTML = `<div class="empty-note">${data.error}</div>`; return; }
     const rec = data.recommendation;
@@ -507,6 +507,10 @@ function renderBidList(listElId, data, { emptyMsg, updatedElId, countLabel } = {
 }
 
 async function doRefresh() {
+  if (window.__SNAPSHOT_MODE__) {
+    alert('이 페이지는 정적 스냅샷 버전입니다 (실시간 재스크래핑 불가).\n실시간 새로고침/카카오 알림은 로컬에서 구동 중인 앱을 이용해주세요.');
+    return;
+  }
   const btn = document.getElementById('refresh-btn');
   btn.disabled = true;
   btn.textContent = '새로고침 중… (로그인+스크래핑, 최대 1분)';
@@ -584,6 +588,17 @@ function renderTopCompanies(companies) {
 }
 
 async function init() {
+  if (window.__SNAPSHOT_MODE__) {
+    const btn = document.getElementById('refresh-btn');
+    btn.textContent = '정적 스냅샷 버전';
+    btn.classList.add('secondary');
+    const banner = document.createElement('p');
+    banner.className = 'section-sub';
+    banner.style.cssText = 'margin:-10px 0 16px;color:var(--warning)';
+    const t = window.__SNAPSHOT_TIME__ ? new Date(window.__SNAPSHOT_TIME__).toLocaleString('ko-KR') : '알 수 없음';
+    banner.textContent = `⚠ 정적 스냅샷 버전입니다 (스냅샷 시각: ${t}). 실시간 새로고침·카카오 알림은 로컬 앱에서만 동작합니다.`;
+    document.querySelector('header.top').insertAdjacentElement('afterend', banner);
+  }
   document.getElementById('refresh-btn').addEventListener('click', doRefresh);
   document.getElementById('table-toggle').addEventListener('click', () => {
     const box = document.getElementById('raw-table-wrap');

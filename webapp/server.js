@@ -39,7 +39,7 @@ app.post('/api/open-bids/refresh', async (req, res) => {
   }
 });
 
-app.get('/api/open-bids/:postingId/analysis', (req, res) => {
+app.get('/api/analysis/:postingId', (req, res) => {
   const openCached = scraper.readCachedOpenBids();
   const myBidCached = scraper.readCachedMyBidList();
   const item = openCached?.items.find(i => i.posting_id === req.params.postingId)

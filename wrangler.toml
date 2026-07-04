@@ -1,0 +1,9 @@
+name = "bid-analysis"
+compatibility_date = "2026-07-01"
+
+# 이 프로젝트는 Node.js/Express + Playwright(헤드리스 브라우저)로 동작하는 로컬 앱이라
+# Cloudflare Workers 런타임에서 그대로 실행할 수 없습니다. 대신 webapp/build-static.js가
+# 빌드 시점 스냅샷(webapp/data/snapshot/*.json)을 정적 JSON으로 미리 만들어 webapp/dist에
+# 출력하고, 이 Worker는 그 정적 자산만 서빙합니다(커스텀 서버 코드 없음).
+[assets]
+directory = "./webapp/dist"
