@@ -67,7 +67,9 @@ function main() {
   let generated = 0;
   for (const item of allItems) {
     const result = buildItemAnalysis(item);
-    writeJson(`api/analysis/${encodeURIComponent(item.posting_id)}.json`, result);
+    // Cloudflare 정적 자산 서빙은 요청 경로를 디코딩한 뒤 파일을 찾으므로, 파일명은
+    // encodeURIComponent 하지 않고 원문 그대로(예: "[R26BK...]") 저장해야 매칭된다.
+    writeJson(`api/analysis/${item.posting_id}.json`, result);
     generated++;
   }
 
