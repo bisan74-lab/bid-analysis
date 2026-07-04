@@ -99,7 +99,7 @@ webapp/
 | `GET /api/open-bids` | 캐시된 "진행중 입찰" 목록 |
 | `GET /api/mybid-list` | 캐시된 "맞춤정보" 목록 |
 | `POST /api/open-bids/refresh` | **재로그인 후** 진행중입찰+맞춤정보 함께 재스크래핑(1분 내외) |
-| `GET /api/open-bids/:postingId/analysis` | 특정 공고 1건의 전체 분석(추천가+전략2종+TOP5업체예측). 진행중입찰/맞춤정보 **양쪽 캐시에서 검색**하므로 어느 리스트에서 클릭해도 동작 |
+| `GET /api/analysis/:postingId` | 특정 공고 1건의 전체 분석(추천가+전략2종+TOP5업체예측). 진행중입찰/맞춤정보 **양쪽 캐시에서 검색**하므로 어느 리스트에서 클릭해도 동작 (원래 `/api/open-bids/:id/analysis`였으나 Cloudflare 정적 배포시 파일/디렉터리 경로 충돌 때문에 이 경로로 변경됨) |
 | `GET /api/top-companies` | TOP5 업체 목록+낙찰이력 |
 | `GET /oauth/kakao/start`, `/oauth/kakao/callback` | 카카오 1회성 OAuth 인가 플로우 |
 | `POST /api/notify/test` | 카카오 테스트 메시지 발송 |
@@ -113,6 +113,16 @@ webapp/
 5. 낙찰 이력 분석 차트 9종: 연차별 건수, 지역별, 업종별, 월별추이, 낙찰률분포, 금액구간별, 발주처TOP15, 시군구TOP20, 참여업체수-낙찰률(산점도+구간별 평균 추세선)
 6. **TOP5 우수 업체 분석** — 각 카드에 건수/평균낙찰률/평균예정가격/평균낙찰금액/평균차액(원+%)/차액범위 표시, 클릭 시 건별 낙찰이력 상세(차액 컬럼 포함)
 7. 원자료 표(접근성용, 월별 낙찰건수)
+
+### 4.4 GitHub + Cloudflare Workers 배포 (2026-07-05 추가)
+- **GitHub**: `github.com/bisan74-lab/bid-analysis` (비공개). 전체 코드+3년치 CSV 원자료 커밋됨. `credentials.local.md`/`kakao.local.md`/토큰 파일은 gitignore로 제외(과거 커밋에도 없음, 매번 push 전 재확인할 것 — 한 번은 문서(PROGRESS.md)에 실수로 카카오 키를 그대로 적었다가 커밋 직전에 발견해서 삭제한 적 있음).
+- **Cloudflare Workers**: Node/Playwright를 못 돌리는 서버리스 환경이라, 앱을 그대로 올릴 수 없음. 대신 **빌드 시점 스냅샷을 정적 JSON으로 미리 생성**해서 서빙하는 방식으로 배포:
+  - `webapp/data/snapshot/*.snapshot.json`: 커밋된 특정 시점 스냅샷(라이브 캐시의 사본, 최신화하려면 로컬에서 새로고침 후 이 파일들에 다시 복사→커밋→푸시).
+  - `webapp/build-static.js`: 스냅샷 기준으로 모든 API 응답(통계/TOP5/공고별 상세분석 등)을 정적 파일로 만들어 `webapp/dist`에 출력(외부 npm 의존성 0개 — Playwright 설치 트리거 안 됨).
+  - `wrangler.toml`(레포 루트): `[assets] directory = "./webapp/dist"`.
+  - **Cloudflare 대시보드에 수동 설정 필요**(AI가 접근 불가): Build command = `node webapp/build-static.js`, Build output directory = `webapp/dist`.
+  - 정적 배포본은 "실시간 새로고침"/카카오 알림이 동작 안 함 — `window.__SNAPSHOT_MODE__` 플래그로 감지해서 버튼 비활성화 + 스냅샷 시각 배너 표시.
+  - API 경로 `/api/open-bids/:id/analysis`는 정적 파일-디렉터리 경로 충돌 때문에 `/api/analysis/:id`로 변경됨(로컬 서버·정적 배포 공통).
 
 ---
 
