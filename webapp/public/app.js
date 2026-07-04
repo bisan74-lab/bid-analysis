@@ -249,7 +249,7 @@ function trendChart(container, data, opts) {
 
 // ---------- data loading & rendering ----------
 async function loadStats() {
-  const res = await fetch('/api/history/stats');
+  const res = await fetch('/api/history/stats.json');
   return res.json();
 }
 
@@ -353,11 +353,11 @@ function renderRawTable(stats) {
 
 // ---------- open bids ----------
 async function loadOpenBids() {
-  const res = await fetch('/api/open-bids');
+  const res = await fetch('/api/open-bids.json');
   return res.json();
 }
 async function loadMyBidList() {
-  const res = await fetch('/api/mybid-list');
+  const res = await fetch('/api/mybid-list.json');
   return res.json();
 }
 
@@ -444,7 +444,7 @@ async function loadItemAnalysis(analysisEl, postingId) {
   if (analysisEl.dataset.loaded === '1') return;
   analysisEl.innerHTML = '<div class="empty-note">분석 중…</div>';
   try {
-    const res = await fetch(`/api/analysis/${encodeURIComponent(postingId)}`);
+    const res = await fetch(`/api/analysis/${encodeURIComponent(postingId)}.json`);
     const data = await res.json();
     if (data.error) { analysisEl.innerHTML = `<div class="empty-note">${data.error}</div>`; return; }
     const rec = data.recommendation;
@@ -530,7 +530,7 @@ async function doRefresh() {
 }
 
 async function loadTopCompanies() {
-  const res = await fetch('/api/top-companies');
+  const res = await fetch('/api/top-companies.json');
   return res.json();
 }
 

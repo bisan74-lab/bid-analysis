@@ -10,7 +10,7 @@ const PORT = process.env.PORT || 4173;
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-app.get('/api/history/stats', (req, res) => {
+app.get('/api/history/stats.json', (req, res) => {
   try {
     res.json(analysis.computeOverviewStats());
   } catch (e) {
@@ -18,13 +18,13 @@ app.get('/api/history/stats', (req, res) => {
   }
 });
 
-app.get('/api/open-bids', (req, res) => {
+app.get('/api/open-bids.json', (req, res) => {
   const cached = scraper.readCachedOpenBids();
   if (!cached) return res.json({ updatedAt: null, count: 0, items: [] });
   res.json(cached);
 });
 
-app.get('/api/mybid-list', (req, res) => {
+app.get('/api/mybid-list.json', (req, res) => {
   const cached = scraper.readCachedMyBidList();
   if (!cached) return res.json({ updatedAt: null, count: 0, items: [] });
   res.json(cached);
@@ -40,10 +40,16 @@ app.post('/api/open-bids/refresh', async (req, res) => {
 });
 
 app.get('/api/analysis/:postingId', (req, res) => {
+  // 정적 배포본(Cloudflare)과 경로를 맞추기 위해 클라이언트는 .json 접미사를 붙여 요청함 —
+  // Express 라우트 패턴 자체에 .json을 넣지 않고 핸들러에서 떼어내서, 공고번호 자체에
+  // 마침표가 들어있는 경우에도 안전하게 동작하게 한다.
+  const postingId = req.params.postingId.endsWith('.json')
+    ? req.params.postingId.slice(0, -5)
+    : req.params.postingId;
   const openCached = scraper.readCachedOpenBids();
   const myBidCached = scraper.readCachedMyBidList();
-  const item = openCached?.items.find(i => i.posting_id === req.params.postingId)
-    || myBidCached?.items.find(i => i.posting_id === req.params.postingId);
+  const item = openCached?.items.find(i => i.posting_id === postingId)
+    || myBidCached?.items.find(i => i.posting_id === postingId);
   if (!item) return res.status(404).json({ error: '해당 공고를 찾을 수 없습니다. 새로고침을 먼저 실행하세요.' });
   const baseAmount = item.기초금액 || item.추정가격;
   if (!baseAmount) return res.status(400).json({ error: '기초금액 정보가 없어 분석할 수 없습니다 (예: 현필/협정 건).' });
@@ -53,7 +59,7 @@ app.get('/api/analysis/:postingId', (req, res) => {
   res.json({ item, recommendation: rec, topCompanies });
 });
 
-app.get('/api/top-companies', (req, res) => {
+app.get('/api/top-companies.json', (req, res) => {
   try {
     res.json(analysis.getTopCompanies(5));
   } catch (e) {

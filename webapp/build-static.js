@@ -50,11 +50,12 @@ function main() {
   html = html.replace('<script src="app.js">', flagScript + '<script src="app.js">');
   fs.writeFileSync(indexPath, html, 'utf8');
 
-  // 3) 통계/TOP5 정적 JSON
-  writeJson('api/history/stats', analysis.computeOverviewStats());
-  writeJson('api/top-companies', analysis.getTopCompanies(5));
-  writeJson('api/open-bids', openBids);
-  writeJson('api/mybid-list', myBidList);
+  // 3) 통계/TOP5 정적 JSON (.json 확장자 필수 — Cloudflare Workers 정적 자산이 확장자 없는
+  // 파일을 안정적으로 서빙하지 못해 빈 응답을 준 사례가 있었음)
+  writeJson('api/history/stats.json', analysis.computeOverviewStats());
+  writeJson('api/top-companies.json', analysis.getTopCompanies(5));
+  writeJson('api/open-bids.json', openBids);
+  writeJson('api/mybid-list.json', myBidList);
 
   // 4) 항목별 상세분석 (진행중입찰 + 맞춤정보 합쳐서, posting_id 중복 제거)
   const seen = new Set();
@@ -66,7 +67,7 @@ function main() {
   let generated = 0;
   for (const item of allItems) {
     const result = buildItemAnalysis(item);
-    writeJson(`api/analysis/${encodeURIComponent(item.posting_id)}`, result);
+    writeJson(`api/analysis/${encodeURIComponent(item.posting_id)}.json`, result);
     generated++;
   }
 
