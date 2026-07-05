@@ -587,6 +587,90 @@ function renderTopCompanies(companies) {
   });
 }
 
+// ---------- AI 예정가격 예측 검증 ----------
+async function loadAiPredictionReport() {
+  try {
+    const res = await fetch('/api/ai-prediction/report.json');
+    if (!res.ok) return null;
+    return res.json();
+  } catch (e) {
+    return null;
+  }
+}
+
+function renderAiPrediction(report) {
+  const section = document.getElementById('ai-prediction-summary').closest('section');
+  if (!report || report.error || !report.ai) {
+    if (section) section.style.display = 'none';
+    return;
+  }
+
+  const el = document.getElementById('ai-prediction-summary');
+  const tiles = [
+    { label: '채점 표본', value: report.scoredCount.toLocaleString('ko-KR') + '건', sub: `전체 샘플 ${report.sampleTotal}건 중` },
+    { label: 'AI 추론 오차율(MAE)', value: (report.ai.mae * 100).toFixed(3) + '%', sub: '평균 절대 오차율' },
+    { label: '기존모델 오차율(MAE)', value: (report.baseline.mae * 100).toFixed(3) + '%', sub: '종목군 평균 예가율만 적용' },
+    { label: 'AI ±1% 이내 적중률', value: (report.ai.hitRates['±1.0%'] * 100).toFixed(1) + '%', sub: `기존모델 ${(report.baseline.hitRates['±1.0%'] * 100).toFixed(1)}%` },
+  ];
+  el.innerHTML = '';
+  for (const t of tiles) {
+    const div = document.createElement('div');
+    div.className = 'stat-tile';
+    div.innerHTML = `<div class="label">${t.label}</div><div class="value">${t.value}</div><div class="sub">${t.sub}</div>`;
+    el.appendChild(div);
+  }
+
+  const bands = Object.keys(report.ai.hitRates);
+  const chartData = bands.map(b => ({
+    band: b,
+    AI: report.ai.hitRates[b] * 100,
+    기존모델: report.baseline.hitRates[b] * 100,
+  }));
+  const container = document.getElementById('chart-ai-hitrate');
+  container.innerHTML = '';
+  const rowH = 46;
+  const w = CHART_W, h = chartData.length * rowH + 10;
+  const labelW = 60, innerW = w - labelW - 50;
+  const root = svg('svg', { viewBox: `0 0 ${w} ${h}`, style: 'display:block;width:100%;height:auto' });
+  chartData.forEach((d, i) => {
+    const y0 = i * rowH + 6;
+    const label = svg('text', { x: labelW - 8, y: y0 + 26, 'text-anchor': 'end', 'font-size': 11, fill: cssVar('--text-secondary') });
+    label.textContent = d.band;
+    root.appendChild(label);
+    [['AI', d.AI, seriesColor(0)], ['기존모델', d.기존모델, seriesColor(3)]].forEach(([name, val, color], j) => {
+      const y = y0 + j * 18;
+      const bw = (val / 100) * innerW;
+      const rect = svg('rect', { x: labelW, y, width: Math.max(2, bw), height: 14, rx: 3, fill: color });
+      rect.addEventListener('mousemove', (e) => showTooltip(e.clientX, e.clientY, `${name} ${d.band} 이내 적중: <b>${val.toFixed(1)}%</b>`));
+      rect.addEventListener('mouseleave', hideTooltip);
+      root.appendChild(rect);
+      const vLabel = svg('text', { x: labelW + bw + 6, y: y + 11, 'font-size': 10, fill: cssVar('--text-muted') });
+      vLabel.textContent = `${name} ${val.toFixed(1)}%`;
+      root.appendChild(vLabel);
+    });
+  });
+  container.appendChild(root);
+
+  const body = document.getElementById('ai-table-body');
+  body.innerHTML = report.rows.map(r => `
+    <tr>
+      <td>${r.posting_id}</td>
+      <td>${fmtWonShort(r.기초금액)}</td>
+      <td>${fmtWonShort(r.실제예정가격)}</td>
+      <td>${fmtWonShort(r.AI예측예정가격)}</td>
+      <td style="color:${Math.abs(r.AI오차율) < Math.abs(r.기존모델오차율) ? 'var(--good)' : 'var(--text-muted)'}">${(r.AI오차율 * 100).toFixed(2)}%</td>
+      <td>${(r.기존모델오차율 * 100).toFixed(2)}%</td>
+      <td style="max-width:320px;white-space:normal">${r.근거 || '-'}</td>
+    </tr>`).join('');
+
+  document.getElementById('ai-table-toggle').addEventListener('click', () => {
+    const box = document.getElementById('ai-table-wrap');
+    const open = box.style.display !== 'none';
+    box.style.display = open ? 'none' : 'block';
+    document.getElementById('ai-table-toggle').textContent = open ? '샘플 상세 결과 보기' : '표 숨기기';
+  });
+}
+
 async function init() {
   if (window.__SNAPSHOT_MODE__) {
     const btn = document.getElementById('refresh-btn');
@@ -607,8 +691,8 @@ async function init() {
     document.getElementById('table-toggle').textContent = open ? '월별 원자료 표 보기' : '표 숨기기';
   });
 
-  const [stats, openBids, myBidList, topCompanies] = await Promise.all([
-    loadStats(), loadOpenBids(), loadMyBidList(), loadTopCompanies(),
+  const [stats, openBids, myBidList, topCompanies, aiReport] = await Promise.all([
+    loadStats(), loadOpenBids(), loadMyBidList(), loadTopCompanies(), loadAiPredictionReport(),
   ]);
   renderStatTiles(stats);
   renderMethodology(stats);
@@ -617,6 +701,7 @@ async function init() {
   renderBidList('mybid-list', myBidList, { emptyMsg: '맞춤정보에 등록된 항목이 없습니다. "새로고침"을 눌러보세요.', updatedElId: 'mybid-updated', countLabel: '전체' });
   renderBidList('open-bids-list', openBids, { emptyMsg: '진행중인 입찰 항목이 없습니다. "새로고침"을 눌러 최신 데이터를 가져오세요.', updatedElId: 'open-bids-updated', countLabel: '부산/경남' });
   renderTopCompanies(topCompanies);
+  renderAiPrediction(aiReport);
 }
 
 init();

@@ -67,6 +67,16 @@ app.get('/api/top-companies.json', (req, res) => {
   }
 });
 
+app.get('/api/ai-prediction/report.json', (req, res) => {
+  try {
+    const p = path.join(__dirname, 'data', 'ai-prediction', 'score_report.json');
+    if (!require('fs').existsSync(p)) return res.status(404).json({ error: 'AI 예측 채점 결과가 아직 없습니다.' });
+    res.json(JSON.parse(require('fs').readFileSync(p, 'utf8')));
+  } catch (e) {
+    res.status(500).json({ error: String(e.message || e) });
+  }
+});
+
 app.get('/oauth/kakao/start', (req, res) => {
   try {
     res.redirect(kakao.getAuthorizeUrl());

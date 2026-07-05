@@ -57,6 +57,12 @@ function main() {
   writeJson('api/open-bids.json', openBids);
   writeJson('api/mybid-list.json', myBidList);
 
+  // AI 예정가격 예측 채점 결과 (미리 생성된 정적 파일을 그대로 복사)
+  const aiReportPath = path.join(__dirname, 'data', 'ai-prediction', 'score_report.json');
+  if (fs.existsSync(aiReportPath)) {
+    writeJson('api/ai-prediction/report.json', JSON.parse(fs.readFileSync(aiReportPath, 'utf8')));
+  }
+
   // 4) 항목별 상세분석 (진행중입찰 + 맞춤정보 합쳐서, posting_id 중복 제거)
   const seen = new Set();
   const allItems = [...openBids.items, ...myBidList.items].filter(it => {
