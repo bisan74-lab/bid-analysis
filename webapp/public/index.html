@@ -14,7 +14,10 @@
       <h1>케이알에스건설 입찰 분석 대시보드</h1>
       <p>아이건설넷 낙찰 이력(부산·경남, 지반조성.포장/상.하수도, 최근 3년) 기반 분석</p>
     </div>
-    <button id="refresh-btn" class="refresh-btn">실시간 새로고침</button>
+    <div style="display:flex;align-items:center;gap:14px">
+      <div id="admin-bar" class="admin-bar"></div>
+      <button id="refresh-btn" class="refresh-btn">실시간 새로고침</button>
+    </div>
   </header>
 
   <section>
@@ -163,6 +166,25 @@
 </div>
 
 <div id="tooltip" class="tooltip"></div>
+
+<div id="password-modal" class="modal-overlay">
+  <form id="password-form" class="modal-card">
+    <h2>비밀번호 변경</h2>
+    <p id="password-modal-note" class="section-sub" style="display:none;margin:0 0 10px">
+      초기 비밀번호(0000)를 계속 사용할 수 없습니다. 새 비밀번호로 변경해주세요.
+    </p>
+    <label class="login-label">현재 비밀번호</label>
+    <input id="pw-current" class="login-input" type="password" autocomplete="current-password" required />
+    <label class="login-label">새 비밀번호 (4자 이상, 0000 불가)</label>
+    <input id="pw-new" class="login-input" type="password" autocomplete="new-password" required />
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button type="submit" class="refresh-btn" style="flex:1">변경하기</button>
+      <button id="pw-cancel" type="button" class="refresh-btn secondary" style="flex:1">취소</button>
+    </div>
+    <p id="password-error" class="login-error" style="display:none"></p>
+  </form>
+</div>
+
 <script src="app.js"></script>
 </body>
 </html>

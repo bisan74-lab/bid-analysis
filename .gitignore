@@ -6,4 +6,7 @@ webapp/data/mybid_list.json
 webapp/server.log
 webapp/kakao.local.md
 webapp/data/kakao_token.json
+webapp/data/admins.json
+webapp/data/session-secret
 webapp/dist/
+.wrangler/

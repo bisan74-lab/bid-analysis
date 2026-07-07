@@ -4,6 +4,17 @@ compatibility_date = "2026-07-01"
 # 이 프로젝트는 Node.js/Express + Playwright(헤드리스 브라우저)로 동작하는 로컬 앱이라
 # Cloudflare Workers 런타임에서 그대로 실행할 수 없습니다. 대신 webapp/build-static.js가
 # 빌드 시점 스냅샷(webapp/data/snapshot/*.json)을 정적 JSON으로 미리 만들어 webapp/dist에
-# 출력하고, 이 Worker는 그 정적 자산만 서빙합니다(커스텀 서버 코드 없음).
+# 출력하고, webapp/worker/index.js가 그 정적 자산(ASSETS 바인딩)을 서빙하면서
+# 로그인 세션 인증(/, /api/*)과 관리자 계정(ADMIN_KV) 관리를 함께 처리합니다.
+main = "webapp/worker/index.js"
+
 [assets]
 directory = "./webapp/dist"
+binding = "ASSETS"
+# 기본값(false)이면 정적 자산과 경로가 겹치는 요청(특히 "/"와 "/api/*.json")은 Worker를 거치지 않고
+# 바로 서빙돼서 로그인 체크(fetch 핸들러)가 통째로 우회된다 — 반드시 true로 설정해야 인증이 걸린다.
+run_worker_first = true
+
+[[kv_namespaces]]
+binding = "ADMIN_KV"
+id = "1cd9fe319ed34d308e376376791e282f"

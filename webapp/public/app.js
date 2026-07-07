@@ -671,7 +671,77 @@ function renderAiPrediction(report) {
   });
 }
 
+// ---------- 인증 ----------
+async function loadMe() {
+  const res = await fetch('/api/auth/me');
+  if (!res.ok) return null;
+  return res.json();
+}
+
+function renderAdminBar(me) {
+  const el = document.getElementById('admin-bar');
+  el.innerHTML = `
+    <span>관리자 <b>${me.id}</b></span>
+    <button id="change-pw-btn" type="button">비밀번호 변경</button>
+    <button id="logout-btn" type="button">로그아웃</button>
+  `;
+  document.getElementById('change-pw-btn').addEventListener('click', () => openPasswordModal(false));
+  document.getElementById('logout-btn').addEventListener('click', async () => {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    location.href = '/login.html';
+  });
+}
+
+function openPasswordModal(forced) {
+  const modal = document.getElementById('password-modal');
+  document.getElementById('password-modal-note').style.display = forced ? 'block' : 'none';
+  document.getElementById('pw-cancel').style.display = forced ? 'none' : 'inline-block';
+  document.getElementById('password-error').style.display = 'none';
+  document.getElementById('pw-current').value = '';
+  document.getElementById('pw-new').value = '';
+  modal.classList.add('open');
+  modal.dataset.forced = forced ? '1' : '0';
+}
+
+function closePasswordModal() {
+  document.getElementById('password-modal').classList.remove('open');
+}
+
+function setupPasswordModal() {
+  document.getElementById('pw-cancel').addEventListener('click', () => closePasswordModal());
+  document.getElementById('password-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errorEl = document.getElementById('password-error');
+    errorEl.style.display = 'none';
+    const currentPassword = document.getElementById('pw-current').value;
+    const newPassword = document.getElementById('pw-new').value;
+    try {
+      const res = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      const data = await res.json();
+      if (!data.ok) {
+        errorEl.textContent = data.error || '변경에 실패했습니다.';
+        errorEl.style.display = 'block';
+        return;
+      }
+      closePasswordModal();
+    } catch (err) {
+      errorEl.textContent = '요청 중 오류가 발생했습니다: ' + err.message;
+      errorEl.style.display = 'block';
+    }
+  });
+}
+
 async function init() {
+  const me = await loadMe();
+  if (!me) { location.href = '/login.html'; return; }
+  renderAdminBar(me);
+  setupPasswordModal();
+  if (me.mustChangePassword) openPasswordModal(true);
+
   if (window.__SNAPSHOT_MODE__) {
     const btn = document.getElementById('refresh-btn');
     btn.textContent = '정적 스냅샷 버전';

@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>로그인 — 케이알에스건설 입찰 분석 대시보드</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div class="login-wrap">
+  <form id="login-form" class="login-card">
+    <h1>케이알에스건설 입찰 분석</h1>
+    <p class="section-sub" style="margin-bottom:16px">관리자 계정으로 로그인하세요. 관리자는 최대 2명이며, 처음 사용하는 ID는 초기 비밀번호(0000)로 등록됩니다.</p>
+    <label class="login-label">ID</label>
+    <input id="login-id" class="login-input" type="text" autocomplete="username" required />
+    <label class="login-label">비밀번호</label>
+    <input id="login-password" class="login-input" type="password" autocomplete="current-password" required />
+    <button id="login-submit" type="submit" class="refresh-btn" style="width:100%;margin-top:14px">로그인 / 등록</button>
+    <p id="login-error" class="login-error" style="display:none"></p>
+  </form>
+</div>
+<script src="login.js"></script>
+</body>
+</html>

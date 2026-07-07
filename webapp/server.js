@@ -4,11 +4,75 @@ const analysis = require('./lib/analysis');
 const scraper = require('./lib/scraper');
 const kakao = require('./lib/kakao');
 const { buildOpenBidsMessage } = require('./lib/notifyMessage');
+const adminStore = require('./lib/adminStore.local');
+const authHandlers = require('./lib/authHandlers');
 
 const app = express();
 const PORT = process.env.PORT || 4173;
 
+app.use(express.json());
+
+function parseCookies(req) {
+  const header = req.headers.cookie || '';
+  return Object.fromEntries(header.split(';').filter(Boolean).map(p => {
+    const idx = p.indexOf('=');
+    return [p.slice(0, idx).trim(), decodeURIComponent(p.slice(idx + 1))];
+  }));
+}
+
+async function getSession(req) {
+  const cookies = parseCookies(req);
+  if (!cookies.session) return null;
+  return authHandlers.verifySession(adminStore, cookies.session);
+}
+
+const SESSION_COOKIE_MAX_AGE = 7 * 24 * 3600;
+
+// 로그인 관련 API(등록/로그인/비밀번호변경/내정보)는 인증 없이도 호출 가능해야 함.
+// 그 외 페이지(/)와 /api/*(데이터) 는 로그인해야만 접근 가능.
+app.use(async (req, res, next) => {
+  if (req.path.startsWith('/api/auth/')) return next();
+  const needsAuth = req.path === '/' || req.path.startsWith('/api/');
+  if (!needsAuth) return next();
+  const session = await getSession(req);
+  if (!session) {
+    if (req.path.startsWith('/api/')) return res.status(401).json({ error: '로그인이 필요합니다.' });
+    return res.redirect('/login.html');
+  }
+  req.adminId = session.id;
+  next();
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
+
+app.post('/api/auth/login', async (req, res) => {
+  const result = await authHandlers.handleLogin(adminStore, req.body?.id, req.body?.password);
+  if (!result.ok) return res.status(401).json(result);
+  res.setHeader('Set-Cookie', `session=${result.token}; HttpOnly; Path=/; Max-Age=${SESSION_COOKIE_MAX_AGE}; SameSite=Lax`);
+  res.json({ ok: true, id: result.id, mustChangePassword: result.mustChangePassword, registered: !!result.registered });
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  res.setHeader('Set-Cookie', 'session=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax');
+  res.json({ ok: true });
+});
+
+app.get('/api/auth/me', async (req, res) => {
+  const session = await getSession(req);
+  if (!session) return res.status(401).json({ error: 'unauthenticated' });
+  const admins = await adminStore.loadAdmins();
+  const me = admins.find(a => a.id === session.id);
+  if (!me) return res.status(401).json({ error: 'unauthenticated' });
+  res.json({ id: session.id, mustChangePassword: !!me.mustChangePassword });
+});
+
+app.post('/api/auth/change-password', async (req, res) => {
+  const session = await getSession(req);
+  if (!session) return res.status(401).json({ error: '로그인이 필요합니다.' });
+  const result = await authHandlers.handleChangePassword(adminStore, session.id, req.body?.currentPassword, req.body?.newPassword);
+  if (!result.ok) return res.status(400).json(result);
+  res.json(result);
+});
 
 app.get('/api/history/stats.json', (req, res) => {
   try {
