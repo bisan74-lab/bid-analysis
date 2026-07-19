@@ -90,6 +90,12 @@ header.top p { margin: 0; color: var(--text-secondary); font-size: 13px; }
 .refresh-btn:disabled { opacity: 0.6; cursor: wait; }
 .refresh-btn.secondary { background: transparent; color: var(--text-primary); }
 
+@media (max-width: 640px) {
+  header.top { flex-direction: column; align-items: stretch; }
+  header.top > div:last-child { justify-content: space-between; }
+  .admin-bar { flex-wrap: wrap; }
+}
+
 section { margin-bottom: 28px; }
 section > h2 {
   font-size: 15px; margin: 0 0 4px; color: var(--text-primary);
