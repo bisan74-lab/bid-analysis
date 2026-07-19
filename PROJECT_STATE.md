@@ -197,7 +197,9 @@ webapp/
 
 **검증 완료**: `wrangler dev --test-scheduled`로 cron 트리거 → `[cron] 나라장터 8건, 신규 8건 (최초 실행 — 알림 생략)` 확인. 로컬 admin 로그인 후 `/api/open-bids.json`(KV, 8건)·`/api/analysis/{id}.json`(사전계산, 편차+TOP5)·`/api/mybid-list.json` 정상. 배포(버전 `ac4bf7ed`, gzip 738KB, startup 83ms, `schedule: 0 23 * * *` 등록) 후 login 307·`/api/*` 401(인증 정상) 확인.
 
-**⚠️ 미검증(사용자와 확인 예정)**: 실제 카카오 발송. 프로덕션 KV는 아직 `open_bids` 없음 → 첫 cron은 baseline(알림 없음). 카카오는 그 다음 신규건부터. 강제 검증하려면 baseline을 N-1건으로 시드하거나 cron을 임박 시각으로 임시 변경해 1회 실발송을 사용자와 함께 확인 필요.
+**프로덕션 실물 검증 완료(2026-07-19)**: baseline을 "현재 8건 - 1건"으로 KV 시드 후 cron을 임박 시각으로 임시 변경·발화 → `[cron] 나라장터 8건, 신규 1건` + invocation Ok, 신규 1건의 분석 메시지가 실제 카카오로 발송됨(사용자 수신 확인). cron은 `0 23 * * *`로 원복. (1차 시도는 `Too many subrequests`로 실패 → `numOfRows` 100→999로 페이지 수 감소시켜 해결, 커밋 `7555690`.)
+
+**⚠️ 카카오 링크 도메인 등록 필요(사용자 액션, 미완)**: 카카오 메시지의 링크(`web_url`)는 카카오 앱의 [플랫폼 > Web > 사이트 도메인]에 등록된 도메인과 일치해야 정상 동작. 현재 앱엔 `http://localhost:4173`만 등록돼 있어(OAuth 설정 잔재), 배포 도메인으로 보낸 링크가 카카오에서 localhost로 대체돼 열림 → "분석 리포트 열기"가 리포트 페이지로 안 감. **사용자가 카카오 디벨로퍼스 콘솔에서 `https://bid-analysis.bisan74.workers.dev`를 사이트 도메인에 추가하면 해결**(코드는 이미 배포 URL을 보냄 — `worker/index.js`의 `DASHBOARD_URL`, env로 재정의 가능). 방법은 `webapp/kakao.local.md`에도 기록.
 
 ---
 

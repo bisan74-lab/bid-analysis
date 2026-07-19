@@ -14,7 +14,13 @@ const notify = require('../lib/notifyMessage');
 import historyCsv from '../../data/raw/nbid_busan_gyeongnam_3y_20260704.csv';
 analysis.loadHistoryFromText(historyCsv);
 
-const DASHBOARD_URL = 'https://bid-analysis.bisan74.workers.dev';
+// 배포 도메인. env로 재정의 가능(커스텀 도메인 대비). 카카오 메시지 링크가 이 도메인을 쓰므로,
+// 이 도메인은 반드시 카카오 디벨로퍼스 앱 [플랫폼 > Web > 사이트 도메인]에 등록돼 있어야
+// 카카오톡에서 링크가 정상 열린다(미등록 시 등록된 도메인=localhost로 대체돼 열림).
+const DEFAULT_DASHBOARD_URL = 'https://bid-analysis.bisan74.workers.dev';
+function dashboardUrl(env) {
+  return (env && env.DASHBOARD_URL) || DEFAULT_DASHBOARD_URL;
+}
 
 function makeKvStore(env) {
   return {
@@ -111,18 +117,19 @@ async function refreshBids(env, { notify: doNotify } = {}) {
 // 신규 입찰 카카오 알림. 개별(≤5건)은 분석 요약 + 리포트 링크, 다수(>5건)는 합본 요약 1건.
 async function notifyNewBids(env, newItems) {
   const client = makeKakaoClient(env);
+  const DASH = dashboardUrl(env);
   if (newItems.length <= 5) {
     for (const item of newItems) {
       const base = item.기초금액 || item.추정가격;
       let rec = null;
       if (base) rec = analysis.recommendBid(base, item.대업종, { 종목: item.종목, 발주처: item.발주처 });
-      const url = `${DASHBOARD_URL}/analysis.html?id=${encodeURIComponent(item.posting_id)}`;
+      const url = `${DASH}/analysis.html?id=${encodeURIComponent(item.posting_id)}`;
       const text = notify.buildBidAnalysisMessage(item, rec, url);
       await client.sendToMe({ text, linkUrl: url, buttonTitle: '분석 리포트 열기' });
     }
   } else {
-    const text = notify.buildNewBidsSummaryMessage(newItems, DASHBOARD_URL);
-    await client.sendToMe({ text, linkUrl: DASHBOARD_URL + '/', buttonTitle: '대시보드 열기' });
+    const text = notify.buildNewBidsSummaryMessage(newItems, DASH);
+    await client.sendToMe({ text, linkUrl: DASH + '/', buttonTitle: '대시보드 열기' });
   }
 }
 
