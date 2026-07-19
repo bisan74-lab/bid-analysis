@@ -75,17 +75,19 @@ async function fetchPage(serviceKey, { pageNo, numOfRows, bgn, end }) {
 
 // 최근 N일간(공고게시일시 기준) 전국 공사 입찰공고를 가져온다. 나라장터 API 자체가 지역/업종 파라미터를
 // 안정적으로 지원하는지 불확실해서(공식 문서에서 명확히 확인 못함) 일단 전국을 받아 이후 단계에서
-// 부산/경남 + 우리 업종으로 좁힌다. 최근 2주 기준 전국 공사공고는 numOfRows=100 기준 수십 페이지 내외.
+// 부산/경남 + 우리 업종으로 좁힌다.
+// numOfRows는 999(최대)로 크게 잡아 페이지 수를 최소화한다 — Cloudflare Worker 무료 플랜의
+// 서브리퀘스트 50개/실행 한도 때문. (14일 전국 ~5천건이면 100건씩=53페이지로 한도 초과, 999건씩=6페이지.)
 // serviceKey는 인자로 받는다 (Node는 파일에서 읽어 넘기고, Worker는 env secret을 넘김 — fs 비의존).
 async function fetchRecentCnstwkBids({ serviceKey, days = 14 } = {}) {
   if (!serviceKey) throw new Error('serviceKey가 필요합니다.');
   const end = new Date();
   const bgn = new Date(end.getTime() - days * 24 * 60 * 60 * 1000);
-  const numOfRows = 100;
+  const numOfRows = 999;
   let pageNo = 1;
   const all = [];
-  // 안전장치: 50페이지(5000건) 초과 시 중단
-  while (pageNo <= 50) {
+  // 안전장치: 20페이지(≈2만건) 초과 시 중단
+  while (pageNo <= 20) {
     const { items, totalCount } = await fetchPage(serviceKey, { pageNo, numOfRows, bgn: fmtDt(bgn), end: fmtDt(end) });
     all.push(...items);
     if (all.length >= totalCount || items.length === 0) break;

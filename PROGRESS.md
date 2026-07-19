@@ -138,4 +138,9 @@
 - Worker에 `scheduled()` cron 핸들러 + KV 기반 데이터 라우트(+정적 폴백) + 수동 새로고침 라우트 추가. 공고별 분석은 cron이 미리 계산해 KV(`analysis:{id}`)에 저장 → 요청당 CPU 최소화(무료 10ms 한도 대비 안전).
 - 배포된 사이트는 이제 정적 스냅샷 모드 폐지 → KV 실시간. 그래서 build-static의 `__SNAPSHOT_MODE__` 주입 제거(새로고침 버튼 정상화).
 - Cloudflare에 secret 2개(G2B/KAKAO) 등록 + KV `kakao_token` 시드(`--path`로, 값 인라인 노출 방지). 배포 성공(버전 `ac4bf7ed`, `schedule: 0 23 * * *` 등록). login 307·`/api/*` 401 확인.
-- **미검증(다음 세션/사용자와)**: 실제 카카오 발송. 프로덕션 첫 cron은 baseline(알림 없음)이라, 강제 확인하려면 baseline을 N-1건 시드하거나 cron을 임박 시각으로 임시 변경해 1회 실발송을 사용자와 함께 봐야 함. `.dev.vars`(gitignore)에 로컬 dev용 키 보관.
+- 로컬에서 실제 카카오 1건 발송 테스트 → 사용자 수신 확인(`result_code:0`). 발송 경로는 Worker cron과 동일 코드.
+- **프로덕션 실물 검증(사용자 요청)**: KV `open_bids`를 "현재 8건 - 1건" baseline으로 시드 → cron을 임박 시각으로 임시 변경·배포 → `wrangler tail`로 관찰.
+  - 1차 시도 **실패**: `Too many subrequests by single Worker invocation`. 원인 = **Cloudflare 무료 플랜 서브리퀘스트 50개/실행 한도**. 나라장터 전국 14일 ~5232건을 `numOfRows=100`으로 받으면 53페이지=53 fetch라 초과.
+  - **수정**: `lib/g2b.js`의 `numOfRows`를 100→**999**로(6페이지로 감소, 총 서브리퀘스트 ~21). 필터 결과는 동일(8건) 확인.
+  - 2차 시도 **성공**: `[cron] 나라장터 8건, 신규 1건` + invocation `- Ok`(에러 없음=발송 성공). baseline 대비 신규 1건(≤5)이라 개별 분석 메시지 실발송. 프로덕션 KV에 `open_bids`/`mybid_list` + `analysis:*`×8 정상 저장(cron이 baseline 덮어씀 → 이후 정상 동작). cron은 `0 23 * * *`(매일 08시 KST)로 원복·재배포 완료.
+- **결론: 전체 파이프라인(자동 갱신 → 신규 감지 → 실시간 분석 → 카카오 발송) 프로덕션 실물 검증 완료.**
