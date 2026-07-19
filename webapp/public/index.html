@@ -29,14 +29,14 @@
     <h2>맞춤정보 등록 항목</h2>
     <p class="section-sub" id="mybid-updated">불러오는 중…</p>
     <div id="mybid-list" class="bid-list"></div>
-    <p class="section-sub" style="margin-top:8px">아이건설넷 계정에 저장된 맞춤정보(종목/지역 설정) 기준으로 자동 매칭된 공고 목록입니다.</p>
+    <p class="section-sub" style="margin-top:8px">진행중 입찰 중 기초금액(추정가격)이 우리 회사 시공능력평가액(지반조성.포장 9.28억 / 상.하수도 18.77억) 이내인, 실제 수주 가능한 규모의 공고만 추린 목록입니다.</p>
   </section>
 
   <section>
     <h2>진행중 입찰 항목 (실시간)</h2>
     <p class="section-sub" id="open-bids-updated">불러오는 중…</p>
     <div id="open-bids-list" class="bid-list"></div>
-    <p class="section-sub" style="margin-top:8px">항목을 클릭하면 과거 데이터 기반 추천 입찰가(낙찰 확률 100/80/65/50%, 안정회귀형/공격밀집형, TOP5 업체 예측 입찰가)를 확인할 수 있습니다.</p>
+    <p class="section-sub" style="margin-top:8px">항목을 클릭하면 새 탭에서 과거 데이터 기반 추천 입찰가(낙찰 확률 100/80/65/50%, 안정회귀형/공격밀집형, 세부 종목·발주처 편차 반영, TOP5 업체 예측 입찰가)를 확인할 수 있습니다.</p>
   </section>
 
   <section>
@@ -161,7 +161,7 @@
   </section>
 
   <footer class="page-footer">
-    데이터 출처: 아이건설넷(igunsul.net) · 내부 분석용 · 실제 투찰 결정은 최신 공고 조건을 반드시 재확인하세요.
+    낙찰 이력 데이터 출처: 아이건설넷(igunsul.net, 과거 수집분) · 진행중 입찰: 나라장터(g2b.go.kr) OpenAPI · 내부 분석용 · 실제 투찰 결정은 최신 공고 조건을 반드시 재확인하세요.
   </footer>
 </div>
 
@@ -185,6 +185,7 @@
   </form>
 </div>
 
+<script src="analysis-render.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

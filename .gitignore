@@ -1,4 +1,5 @@
 credentials.local.md
+webapp/g2b.local.md
 *.log
 webapp/node_modules/
 webapp/data/open_bids.json

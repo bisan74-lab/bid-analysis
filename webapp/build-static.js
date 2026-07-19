@@ -24,7 +24,7 @@ function writeJson(relPath, data) {
 function buildItemAnalysis(item) {
   const baseAmount = item.기초금액 || item.추정가격;
   if (!baseAmount) return { item, error: '기초금액 정보가 없어 분석할 수 없습니다 (예: 현필/협정 건).' };
-  const rec = analysis.recommendBid(baseAmount, item.대업종);
+  const rec = analysis.recommendBid(baseAmount, item.대업종, { 종목: item.종목, 발주처: item.발주처 });
   const topCompanies = analysis.getTopCompanies(5).map(c => analysis.predictCompanyBid(c.name, baseAmount, item.대업종));
   return { item, recommendation: rec, topCompanies };
 }

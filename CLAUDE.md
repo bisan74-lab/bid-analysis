@@ -19,7 +19,7 @@
 
 - **아이건설넷 자동 로그인은 2026-07-19부로 전면 중단.** 로그인 시 사이트에서 자동화 감지 경고 팝업이 떠서, 사용자 지시로 즉시 중단함. **다시 로그인 시도하지 말 것** (우회 시도도 금지). 상세 경위·조치 내역은 `PROJECT_STATE.md` 5.5장 참고.
 - 과거 낙찰 이력(`data/raw/*.csv`, 최근 3년치, 부산+경남)은 중단 이전에 이미 수집된 것이라 계속 사용 가능. 문제가 된 건 "진행중 입찰"/"맞춤정보"를 실시간으로 긁어오던 로그인 세션 부분뿐.
-- **신규 데이터 소스로 전환 중: 나라장터(www.g2b.go.kr)**. 로그인 없이 쓸 수 있는 조달청 나라장터 입찰공고정보서비스 OpenAPI(data.go.kr 인증키 발급) 사용을 우선 검토. 부산·경남 소재 발주처 + 토공/지반조성포장·상하수도설비 관련 공고만 필터링.
+- **신규 데이터 소스로 전환 완료: 나라장터(www.g2b.go.kr) OpenAPI** (2026-07-19). `webapp/lib/g2b.js`가 조달청_나라장터 입찰공고정보서비스(`getBidPblancListInfoCnstwk`)를 호출해 부산·경남 + 토공/지반조성포장·상하수도설비 관련 공고만 필터링, 기존 `data/open_bids.json`/`mybid_list.json` 캐시 포맷 그대로 채운다. **중요**: 이 API는 curl로 호출하면 data.go.kr WAF가 403을 반환하지만 Node 내장 `fetch`로는 정상 동작함 — 반드시 fetch 사용. 인증키는 `webapp/g2b.local.md`(gitignore). 상세는 `PROJECT_STATE.md` 5.6장 참고.
 
 ## 회사 핵심 지표 (최신 확인서 기준)
 
@@ -43,9 +43,13 @@ npm start                        # http://localhost:4173
 - `lib/analysis.js`: `data/raw/*.csv` 낙찰 이력을 로딩해 통계/입찰가 추천 모델 계산 (가중치·모델 정의는 PROGRESS.md 2026-07-04 세션3 참고). 경남 시/군 단위(관내 제한 추정) 발주처는 `lib/localFilter.js`로 전량 제외 (default-exclude/화이트리스트 방식 — 지명 문자열 겹침 버그 이력 있으니 새 화이트리스트 패턴 추가 시 PROGRESS.md 2026-07-05 기록 참고).
 - **TOP5 우수 업체 분석** (2026-07-05 완성): 낙찰건수 10건 이상 업체 중 건수+낙찰률 종합순위 TOP5의 낙찰이력을 대시보드 하단에 표시 (`getTopCompanies`/`predictCompanyBid` in `lib/analysis.js`). 이 TOP5 업체의 예측 입찰가는 별도 섹션이 아니라 "맞춤정보"/"진행중 입찰" 리스트의 항목별 클릭-상세패널 안에 함께 표시됨.
 - **맞춤정보 리스트** (2026-07-05 추가): 아이건설넷 `/mybid`(계정에 저장된 검색조건 기준 자동매칭 목록)를 `lib/scraper.js`의 `scrapeMyBidList()`로 함께 스크래핑, `data/mybid_list.json`에 캐시(gitignore). "진행중 입찰 항목" 바로 위에 표시되며 동일한 클릭-상세분석 UI 공유.
-- `lib/scraper.js`: 아이건설넷 로그인 + 진행중 입찰(`/bid`) 실시간 스크래핑 코드 — **더 이상 어디서도 호출되지 않음** (2026-07-19 중단). 참고용으로만 남겨둠.
-- `public/`: 바닐라 JS + 손수 작성 SVG 차트 대시보드.
-- `data/open_bids.json`: 과거 스크래핑 캐시(더 이상 갱신 안 됨). `/api/open-bids/refresh`는 410을 반환하도록 비활성화됨.
+- `lib/scraper.js`: 아이건설넷 로그인 + 진행중 입찰(`/bid`) 실시간 스크래핑 코드 — **더 이상 어디서도 호출되지 않음** (2026-07-19 중단). 참고용으로만 남겨둠. `readCachedOpenBids()`/`readCachedMyBidList()`(순수 캐시파일 읽기 함수)만 계속 재사용됨.
+- `lib/g2b.js`: 나라장터 OpenAPI 기반 진행중 입찰 수집(위 참고). `/api/open-bids/refresh` 클릭 시 호출됨.
+- `public/`: 바닐라 JS + 손수 작성 SVG 차트 대시보드. `analysis-render.js`(공용 렌더 함수)가 `app.js`/`analysis.js` 양쪽에서 쓰임 — `index.html`/`analysis.html` 모두 `app.js`/`analysis.js`보다 먼저 로드해야 함.
+- **공고별 분석 새 탭** (2026-07-19): "진행중 입찰 항목" 카드를 클릭하면 `analysis.html?id={posting_id}`가 새 탭으로 열림(`window.open`). "맞춤정보 등록 항목"은 기존처럼 인라인 확장 유지. 두 경로 모두 `/api/analysis/:postingId`를 공유.
+- **맞춤정보 재정의** (2026-07-19): 로그인 계정 저장검색 개념이 사라져서, "기초금액(추정가격)이 해당 업종 시공능력평가액 이하인 진행중 입찰"로 재정의(`lib/g2b.js`의 `fitsCapacity()`). 즉 "실제로 수주 가능한 규모"의 공고만 모음.
+- **카테고리 편차 반영 모델** (2026-07-19): `lib/analysis.js`의 `recommendBid(기초금액, 대업종, {종목, 발주처})` — 세부 종목 태그(CSV의 `종목` 컬럼, 처음 활용됨)와 발주처 단위로 낙찰률이 대업종 평균에서 얼마나 벗어나는지(표본 15건/8건 이상일 때만) 계산해서 tiers/전략밴드에 반영. 결과의 `appliedAdjustments` 필드로 UI에 표시됨.
+- `data/open_bids.json`: 나라장터 기반 캐시(수동 "실시간 새로고침" 클릭 시 갱신).
 - **카카오톡 "나에게 보내기" 자동 알림 — 중단됨** (2026-07-19, 스크래핑 의존이라 함께 중단). 설정 파일(`lib/kakao.js`, `webapp/kakao.local.md` 등)은 남아있어 나라장터 연동 후 재사용 가능. `scripts/notify.js`는 실행 즉시 종료하도록 막아둠. Windows 작업 스케줄러 `BidAnalysis-KakaoNotify` 태스크는 비활성화(Disabled) 상태.
 
 ## 참고 사항

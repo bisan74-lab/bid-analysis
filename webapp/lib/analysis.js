@@ -172,7 +172,22 @@ function pickGroup(rows, 대업종) {
   return filtered;
 }
 
-function recommendBid(기초금액, 대업종) {
+// group(이미 포장/상하수도로 걸러진 비교풀) 중 matcher를 만족하는 서브셋의 가중평균 낙찰률이
+// baselineMean과 얼마나 다른지(delta)를 구한다. 표본이 minSample 미만이면 편차를 신뢰할 수 없으므로
+// null(미적용) — pickGroup()의 "표본 부족 시 폴백" 사상과 동일.
+function computeCategoryDeviation(group, matcher, baselineMean, { minSample = 15 } = {}) {
+  if (baselineMean == null) return null;
+  const subset = group.filter(r => r.낙찰률 != null && matcher(r));
+  if (subset.length < minSample) return null;
+  const subsetMean = weightedMean(subset.map(r => ({ value: r.낙찰률, weight: r.weight })));
+  if (subsetMean == null) return null;
+  return { delta: subsetMean - baselineMean, sampleSize: subset.length };
+}
+
+// 종목: 진행중 공고의 세분화 종목 태그 조합 문자열(예: "포장/토공"). 대업종보다 세밀한 축이라, 같은
+// 포장/상하수도군 안에서도 세부 공종에 따라 낙찰률이 조금씩 다른 경향을 잡아내는 데 쓴다.
+// 발주처: 같은 발주처가 비슷한 공사를 반복 발주하는 경우(예: 특정 학교/기관) 그 발주처만의 성향을 잡는다.
+function recommendBid(기초금액, 대업종, { 종목, 발주처 } = {}) {
   const rows = loadHistory();
   const group = pickGroup(rows, 대업종);
 
@@ -183,9 +198,37 @@ function recommendBid(기초금액, 대업종) {
 
   const winRatioItems = group.filter(r => r.낙찰률 != null)
     .map(r => ({ value: r.낙찰률, weight: r.weight }));
+  const baselineWinMean = weightedMean(winRatioItems);
+
+  // 카테고리 편차 반영: 종목 세부 태그 하나(가장 먼저 표본이 충분한 것) + 발주처(있으면, 가중치 절반)를
+  // 낙찰률에 더해서 tiers/전략밴드 전체를 같은 방향으로 이동시킨다.
+  const appliedAdjustments = [];
+  let totalDelta = 0;
+
+  if (종목) {
+    for (const tag of 종목.split('/').filter(Boolean)) {
+      const dev = computeCategoryDeviation(
+        group, r => (r.종목 || '').split('/').includes(tag), baselineWinMean, { minSample: 15 }
+      );
+      if (dev) {
+        appliedAdjustments.push({ dimension: '종목', value: tag, delta: dev.delta, sampleSize: dev.sampleSize });
+        totalDelta += dev.delta;
+        break; // 종목 축은 과다 누적 방지를 위해 하나만 적용
+      }
+    }
+  }
+  if (발주처) {
+    const dev = computeCategoryDeviation(group, r => r.발주처 === 발주처, baselineWinMean, { minSample: 8 });
+    if (dev) {
+      const weighted = dev.delta * 0.5;
+      appliedAdjustments.push({ dimension: '발주처', value: 발주처, delta: weighted, sampleSize: dev.sampleSize });
+      totalDelta += weighted;
+    }
+  }
+  const shift = (ratio) => (ratio == null ? null : ratio + totalDelta);
 
   const tiers = [100, 80, 65, 50].map(p => {
-    const ratio = weightedPercentile(winRatioItems, p);
+    const ratio = shift(weightedPercentile(winRatioItems, p));
     return {
       probability: p,
       낙찰률: ratio,
@@ -195,7 +238,8 @@ function recommendBid(기초금액, 대업종) {
 
   // 안정회귀형: 가중평균(낙찰률)으로 "평균 회귀" 기대 중심값을 잡고, 그 평균의 표준오차(SEM) 범위를
   // 상/하한으로 삼는다 — 평균 추정 자체의 통계적 불확실성 범위이므로 "안정적인" 밴드가 된다.
-  const { mean: stableMean, sem: stableSem, n: stableN } = weightedMeanAndSem(winRatioItems);
+  const { mean: stableMeanRaw, sem: stableSem, n: stableN } = weightedMeanAndSem(winRatioItems);
+  const stableMean = shift(stableMeanRaw);
   const stableRegression = stableMean == null ? null : {
     사정률중앙: stableMean,
     사정률상한: stableMean + stableSem,
@@ -210,10 +254,10 @@ function recommendBid(기초금액, 대업종) {
   // 상/하한을 그대로 추천 밴드로 사용한다 — 평균과 무관하게 "실제로 가장 많이 낙찰된 지점"을 노리는 전략.
   const densest = findDensestBin(winRatioItems, 0.0025); // 0.25%p = 0.0025 (비율 단위)
   const aggressiveCluster = densest == null ? null : {
-    사정률하한: densest.lower,
-    사정률상한: densest.upper,
-    하한선: Math.round(estimatedApprovedPrice * densest.lower),
-    상한선: Math.round(estimatedApprovedPrice * densest.upper),
+    사정률하한: densest.lower + totalDelta,
+    사정률상한: densest.upper + totalDelta,
+    하한선: Math.round(estimatedApprovedPrice * (densest.lower + totalDelta)),
+    상한선: Math.round(estimatedApprovedPrice * (densest.upper + totalDelta)),
     구간표본비중: densest.share,
   };
 
@@ -226,6 +270,7 @@ function recommendBid(기초금액, 대업종) {
     stableRegression,
     aggressiveCluster,
     weights: RECENCY_WEIGHTS,
+    appliedAdjustments,
   };
 }
 
@@ -455,4 +500,4 @@ function predictCompanyBid(companyName, 기초금액, 대업종) {
   };
 }
 
-module.exports = { loadHistory, recommendBid, computeOverviewStats, getTopCompanies, predictCompanyBid, RECENCY_WEIGHTS };
+module.exports = { loadHistory, recommendBid, computeOverviewStats, getTopCompanies, predictCompanyBid, computeCategoryDeviation, RECENCY_WEIGHTS };

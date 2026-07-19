@@ -2,6 +2,7 @@ const express = require('express');
 const path = require('path');
 const analysis = require('./lib/analysis');
 const scraper = require('./lib/scraper');
+const g2b = require('./lib/g2b');
 const kakao = require('./lib/kakao');
 const { buildOpenBidsMessage } = require('./lib/notifyMessage');
 const adminStore = require('./lib/adminStore.local');
@@ -95,9 +96,13 @@ app.get('/api/mybid-list.json', (req, res) => {
 });
 
 app.post('/api/open-bids/refresh', async (req, res) => {
-  // 아이건설넷이 자동 로그인을 감지하고 경고를 띄운 이후로 로그인 스크래핑을 전면 중단함 (2026-07-19).
-  // 대체 데이터 소스(나라장터 OpenAPI) 연동 전까지는 비활성 상태로 둔다.
-  res.status(410).json({ error: '아이건설넷 자동 로그인은 중단되었습니다. 나라장터 연동으로 대체 예정입니다.' });
+  // 아이건설넷 로그인 스크래핑은 전면 중단(2026-07-19). 로그인이 필요 없는 나라장터 OpenAPI로 대체.
+  try {
+    const result = await g2b.refreshAndCache();
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ error: String(e.message || e) });
+  }
 });
 
 app.get('/api/analysis/:postingId', (req, res) => {
@@ -114,7 +119,7 @@ app.get('/api/analysis/:postingId', (req, res) => {
   if (!item) return res.status(404).json({ error: '해당 공고를 찾을 수 없습니다. 새로고침을 먼저 실행하세요.' });
   const baseAmount = item.기초금액 || item.추정가격;
   if (!baseAmount) return res.status(400).json({ error: '기초금액 정보가 없어 분석할 수 없습니다 (예: 현필/협정 건).' });
-  const rec = analysis.recommendBid(baseAmount, item.대업종);
+  const rec = analysis.recommendBid(baseAmount, item.대업종, { 종목: item.종목, 발주처: item.발주처 });
   const topCompanies = analysis.getTopCompanies(5)
     .map(c => analysis.predictCompanyBid(c.name, baseAmount, item.대업종));
   res.json({ item, recommendation: rec, topCompanies });

@@ -1,8 +1,5 @@
-const SERIES = ['--series-1','--series-2','--series-3','--series-4','--series-5','--series-6','--series-7','--series-8'];
-function seriesColor(i) { return getComputedStyle(document.documentElement).getPropertyValue(SERIES[i % SERIES.length]).trim(); }
-function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
-
-const fmtWon = (n) => n == null ? '-' : Math.round(n).toLocaleString('ko-KR') + '원';
+// seriesColor/cssVar/fmtWon/fmtRatioAsPct/renderStrategyTiles/renderCompanyPredictions는
+// analysis-render.js(이 스크립트보다 먼저 로드됨)가 제공한다.
 const fmtWonShort = (n) => {
   if (n == null) return '-';
   if (n >= 100_000_000) return (n / 100_000_000).toFixed(1) + '억원';
@@ -14,7 +11,6 @@ const fmtPctDiff = (r) => { // ratio(=낙찰률) -> "+1.23%" / "-1.23%" (예정�
   const pct = (r - 1) * 100;
   return (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%';
 };
-const fmtRatioAsPct = (r) => r == null ? '-' : (r * 100).toFixed(1) + '%';
 const fmtWonDiff = (n) => n == null ? '-' : (n < 0 ? '-' : '+') + fmtWonShort(Math.abs(n));
 
 // ---------- tooltip ----------
@@ -361,75 +357,6 @@ async function loadMyBidList() {
   return res.json();
 }
 
-function renderStrategyTiles(rec) {
-  const sr = rec.stableRegression;
-  const ac = rec.aggressiveCluster;
-  if (!sr && !ac) return '';
-  const srColor = seriesColor(4); // violet
-  const acColor = seriesColor(6); // magenta
-  return `
-    <div class="strategy-block">
-      ${sr ? `
-        <div class="strategy-group">
-          <p class="strategy-title" style="color:${srColor}">안정회귀형 <span class="strategy-sub">— 가중평균 낙찰률의 표준오차(SEM) 구간, 평균 회귀 기대</span></p>
-          <div class="tier-grid">
-            <div class="tier-tile" style="border-color:${srColor}55">
-              <div class="p">하한선</div>
-              <div class="amt">${fmtWon(sr.하한선)}</div>
-              <div class="ratio">예정가격 대비 ${fmtRatioAsPct(sr.사정률하한)}</div>
-            </div>
-            <div class="tier-tile" style="border-color:${srColor}55">
-              <div class="p">중앙값</div>
-              <div class="amt">${fmtWon(sr.중앙값)}</div>
-              <div class="ratio">예정가격 대비 ${fmtRatioAsPct(sr.사정률중앙)}</div>
-            </div>
-            <div class="tier-tile" style="border-color:${srColor}55">
-              <div class="p">상한선</div>
-              <div class="amt">${fmtWon(sr.상한선)}</div>
-              <div class="ratio">예정가격 대비 ${fmtRatioAsPct(sr.사정률상한)}</div>
-            </div>
-          </div>
-        </div>` : ''}
-      ${ac ? `
-        <div class="strategy-group">
-          <p class="strategy-title" style="color:${acColor}">공격밀집형 <span class="strategy-sub">— 과거 낙찰률 최다빈도 구간(표본 ${(ac.구간표본비중*100).toFixed(1)}% 집중)</span></p>
-          <div class="tier-grid">
-            <div class="tier-tile" style="border-color:${acColor}55">
-              <div class="p">하한선</div>
-              <div class="amt">${fmtWon(ac.하한선)}</div>
-              <div class="ratio">예정가격 대비 ${fmtRatioAsPct(ac.사정률하한)}</div>
-            </div>
-            <div class="tier-tile" style="border-color:${acColor}55">
-              <div class="p">상한선</div>
-              <div class="amt">${fmtWon(ac.상한선)}</div>
-              <div class="ratio">예정가격 대비 ${fmtRatioAsPct(ac.사정률상한)}</div>
-            </div>
-          </div>
-        </div>` : ''}
-    </div>
-  `;
-}
-
-function renderCompanyPredictions(topCompanies) {
-  if (!topCompanies || !topCompanies.length) return '';
-  return `
-    <div class="strategy-block">
-      <div class="strategy-group">
-        <p class="strategy-title">TOP5 업체 예측 입찰가 <span class="strategy-sub">— 각 업체의 과거 낙찰이력(가중평균 낙찰률) 기준 예측치</span></p>
-        <div class="tier-grid">
-          ${topCompanies.map((c, i) => `
-            <div class="tier-tile" style="border-color:${seriesColor(i)}55">
-              <div class="p">${c.companyName}${c.신뢰도.includes('낮음') ? ' ·표본부족' : ''}</div>
-              <div class="amt">${fmtWon(c.예측입찰가)}</div>
-              <div class="ratio">예정가격 대비 ${fmtRatioAsPct(c.예측낙찰률)}</div>
-            </div>
-          `).join('')}
-        </div>
-      </div>
-    </div>
-  `;
-}
-
 function bidMetaLine(item) {
   const parts = [];
   if (item.기초금액) parts.push(`기초금액 <b>${fmtWonShort(item.기초금액)}</b>`);
@@ -446,32 +373,14 @@ async function loadItemAnalysis(analysisEl, postingId) {
   try {
     const res = await fetch(`/api/analysis/${encodeURIComponent(postingId)}.json`);
     const data = await res.json();
-    if (data.error) { analysisEl.innerHTML = `<div class="empty-note">${data.error}</div>`; return; }
-    const rec = data.recommendation;
-    analysisEl.innerHTML = `
-      <div style="font-size:12.5px;color:var(--text-secondary)">
-        추정 예정가격 <b style="color:var(--text-primary)">${fmtWon(rec.추정예정가격)}</b>
-        (기초금액 대비 ${(rec.추정예가율 * 100).toFixed(2)}%, 표본 ${rec.표본수.toLocaleString('ko-KR')}건)
-      </div>
-      <div class="tier-grid">
-        ${rec.tiers.map((t, i) => `
-          <div class="tier-tile" style="border-color:${seriesColor(i)}55">
-            <div class="p">낙찰 확률 ${t.probability}%</div>
-            <div class="amt">${fmtWon(t.추천금액)}</div>
-            <div class="ratio">예정가격 대비 ${fmtRatioAsPct(t.낙찰률)}</div>
-          </div>
-        `).join('')}
-      </div>
-      ${renderStrategyTiles(rec)}
-      ${renderCompanyPredictions(data.topCompanies)}
-    `;
+    analysisEl.innerHTML = renderAnalysisBody(data);
     analysisEl.dataset.loaded = '1';
   } catch (e) {
     analysisEl.innerHTML = '<div class="empty-note">분석 실패: ' + e.message + '</div>';
   }
 }
 
-function renderBidList(listElId, data, { emptyMsg, updatedElId, countLabel } = {}) {
+function renderBidList(listElId, data, { emptyMsg, updatedElId, countLabel, openInNewTab } = {}) {
   const el = document.getElementById(listElId);
   const updatedEl = updatedElId ? document.getElementById(updatedElId) : null;
   if (!data.items || !data.items.length) {
@@ -492,23 +401,43 @@ function renderBidList(listElId, data, { emptyMsg, updatedElId, countLabel } = {
         <div class="badge">${item.종목 || ''}</div>
       </div>
       <div class="meta">${bidMetaLine(item)}</div>
-      <div class="bid-analysis" data-loaded="0"></div>
+      ${openInNewTab ? '' : '<div class="bid-analysis" data-loaded="0"></div>'}
     `;
-    const analysisEl = card.querySelector('.bid-analysis');
-    card.addEventListener('click', () => {
-      const isOpen = analysisEl.classList.contains('open');
-      document.querySelectorAll('.bid-analysis.open').forEach(o => { if (o !== analysisEl) o.classList.remove('open'); });
-      if (isOpen) { analysisEl.classList.remove('open'); return; }
-      analysisEl.classList.add('open');
-      loadItemAnalysis(analysisEl, item.posting_id);
-    });
+    if (openInNewTab) {
+      card.addEventListener('click', () => {
+        window.open(`/analysis.html?id=${encodeURIComponent(item.posting_id)}`, '_blank');
+      });
+    } else {
+      const analysisEl = card.querySelector('.bid-analysis');
+      card.addEventListener('click', () => {
+        const isOpen = analysisEl.classList.contains('open');
+        document.querySelectorAll('.bid-analysis.open').forEach(o => { if (o !== analysisEl) o.classList.remove('open'); });
+        if (isOpen) { analysisEl.classList.remove('open'); return; }
+        analysisEl.classList.add('open');
+        loadItemAnalysis(analysisEl, item.posting_id);
+      });
+    }
     el.appendChild(card);
   }
 }
 
 async function doRefresh() {
-  // 아이건설넷 자동 로그인 중단(2026-07-19) — 나라장터 연동으로 대체 전까지 비활성화.
-  alert('아이건설넷 자동 로그인은 중단되었습니다.\n진행중 입찰 정보는 나라장터 연동으로 대체될 예정입니다.');
+  const btn = document.getElementById('refresh-btn');
+  btn.disabled = true;
+  btn.textContent = '새로고침 중… (나라장터 조회, 최대 1분)';
+  try {
+    const res = await fetch('/api/open-bids/refresh', { method: 'POST' });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    const [openBids, myBidList] = await Promise.all([loadOpenBids(), loadMyBidList()]);
+    renderBidList('open-bids-list', openBids, { emptyMsg: '진행중인 입찰 항목이 없습니다.', updatedElId: 'open-bids-updated', countLabel: '부산/경남', openInNewTab: true });
+    renderBidList('mybid-list', myBidList, { emptyMsg: '맞춤정보(수주 가능 규모)에 해당하는 항목이 없습니다.', updatedElId: 'mybid-updated', countLabel: '전체' });
+  } catch (e) {
+    alert('새로고침 실패: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '실시간 새로고침';
+  }
 }
 
 async function loadTopCompanies() {
@@ -724,18 +653,19 @@ async function init() {
   setupPasswordModal();
   if (me.mustChangePassword) openPasswordModal(true);
 
-  const refreshBtn = document.getElementById('refresh-btn');
-  refreshBtn.textContent = '실시간 새로고침 (중단됨)';
-  refreshBtn.classList.add('secondary');
   if (window.__SNAPSHOT_MODE__) {
+    const refreshBtn = document.getElementById('refresh-btn');
+    refreshBtn.textContent = '정적 스냅샷 버전';
+    refreshBtn.classList.add('secondary');
     const banner = document.createElement('p');
     banner.className = 'section-sub';
     banner.style.cssText = 'margin:-10px 0 16px;color:var(--warning)';
     const t = window.__SNAPSHOT_TIME__ ? new Date(window.__SNAPSHOT_TIME__).toLocaleString('ko-KR') : '알 수 없음';
-    banner.textContent = `⚠ 정적 스냅샷 버전입니다 (스냅샷 시각: ${t}).`;
+    banner.textContent = `⚠ 정적 스냅샷 버전입니다 (스냅샷 시각: ${t}). 실시간 새로고침은 로컬 앱에서만 동작합니다.`;
     document.querySelector('header.top').insertAdjacentElement('afterend', banner);
+  } else {
+    document.getElementById('refresh-btn').addEventListener('click', doRefresh);
   }
-  document.getElementById('refresh-btn').addEventListener('click', doRefresh);
   document.getElementById('table-toggle').addEventListener('click', () => {
     const box = document.getElementById('raw-table-wrap');
     const open = box.style.display !== 'none';
@@ -750,8 +680,8 @@ async function init() {
   renderMethodology(stats);
   renderCharts(stats);
   renderRawTable(stats);
-  renderBidList('mybid-list', myBidList, { emptyMsg: '맞춤정보에 등록된 항목이 없습니다. "새로고침"을 눌러보세요.', updatedElId: 'mybid-updated', countLabel: '전체' });
-  renderBidList('open-bids-list', openBids, { emptyMsg: '진행중인 입찰 항목이 없습니다. "새로고침"을 눌러 최신 데이터를 가져오세요.', updatedElId: 'open-bids-updated', countLabel: '부산/경남' });
+  renderBidList('mybid-list', myBidList, { emptyMsg: '맞춤정보(수주 가능 규모)에 해당하는 항목이 없습니다. "새로고침"을 눌러보세요.', updatedElId: 'mybid-updated', countLabel: '전체' });
+  renderBidList('open-bids-list', openBids, { emptyMsg: '진행중인 입찰 항목이 없습니다. "새로고침"을 눌러 최신 데이터를 가져오세요.', updatedElId: 'open-bids-updated', countLabel: '부산/경남', openInNewTab: true });
   renderTopCompanies(topCompanies);
   renderAiPrediction(aiReport);
 }
