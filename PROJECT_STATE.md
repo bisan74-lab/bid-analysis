@@ -177,16 +177,39 @@ webapp/
 - `webapp/public/analysis.html` + `analysis.js`(신규): `?id=` 쿼리로 `/api/analysis/{id}.json`을 그대로 fetch(서버 라우트 무수정), `loadMe()` 인증 체크. 진행중 입찰 카드 클릭 시 `window.open('/analysis.html?id=...', '_blank')`.
 - Playwright로 로그인→"진행중 입찰" 카드 클릭→새 탭에서 분석 페이지(추천가/전략밴드/편차 내역/TOP5 예측 전부 정상 표시) 실측 확인함.
 
-**아직 안 한 것**: 자동(주기적) 새로고침 — 이번엔 "실시간 새로고침" 수동 버튼만 살림(사용자 결정, 1차). Cloudflare 정적 배포(`webapp/data/snapshot/*.snapshot.json`)는 이번 세션에서 갱신 안 함 — 다음에 최신화하려면 로컬에서 새로고침 후 그 스냅샷 파일들에 복사→커밋→푸시해야 함(4.4장 참고).
+(2026-07-19 후속 세션에서 자동 갱신·카카오 알림까지 구현 — 5.7장 참고.)
+
+---
+
+## 5.7 완전 클라우드 자동 갱신 + 신규 입찰 카카오 알림 (Cloudflare Cron, 2026-07-19)
+
+**배포된 Worker가 매일 08시(KST)에 스스로 나라장터를 조회·갱신하고, 신규 입찰이 생기면 분석 요약 + 리포트 링크를 사용자 카카오톡으로 자동 발송한다.** PC를 켜둘 필요 없음(완전 클라우드).
+
+**아키텍처**:
+- `wrangler.toml`: `[triggers] crons = ["0 23 * * *"]`(23:00 UTC = 08:00 KST), `compatibility_flags=["nodejs_compat"]`(공용 lib의 `require('fs')` 폴리필용 — Worker 실행경로에선 fs 호출 안 함), `[[rules]] type="Text" globs=["**/*.csv"]`(과거 이력 CSV를 번들에 내장).
+- `webapp/worker/index.js`: 상단에서 CSV를 Text 임포트 → `analysis.loadHistoryFromText()` 1회. `scheduled()` 핸들러가 cron 진입점. 데이터 API(`/api/open-bids.json`,`/api/mybid-list.json`,`/api/analysis/:id`)는 **KV 우선, 없으면 정적 폴백**. `POST /api/open-bids/refresh`(수동 새로고침)도 Worker가 처리(카카오 발송은 안 함).
+- `refreshBids(env,{notify})`: 나라장터 조회→`buildBidLists`→이전 KV(`open_bids`)와 posting_id 비교로 신규 판정→KV에 `open_bids`/`mybid_list` + 공고별 `analysis:{id}`(사전계산, 요청당 CPU 최소화) 저장. notify=true(cron)면 신규건 카카오 발송. **최초 실행(이전 KV 없음)은 baseline만 저장, 알림 생략.**
+- 카카오: `analysis:{id}`는 미리 계산해두므로 알림 메시지는 분석 요약(추정예정가격/추천가80%/안정회귀중앙값/편차) + 리포트 링크(`analysis.html?id=`). 신규 ≤5건은 개별 발송, >5건은 합본 1건. access_token은 `createKakaoClient` 인스턴스에 메모이즈 → run당 refresh 1회. **분석·요약 전부 순수 통계·문자열 = AI 토큰 0.**
+
+**리팩터링(로컬/Worker 공용, fs 주입식)**: `lib/analysis.js`(`parseHistory`/`loadHistoryFromText` 분리), `lib/g2b.js`(`fetchRecentCnstwkBids({serviceKey})`+`buildBidLists` 순수함수), `lib/kakao.js`(`createKakaoClient({restApiKey,loadTokens,saveTokens})` 팩토리), `lib/notifyMessage.js`(g2b 필드 반영 + `buildBidAnalysisMessage`/`buildNewBidsSummaryMessage`). top-level `path.join(__dirname,...)`은 번들 안전성 위해 지연 함수로 이동. server.js는 하위호환 export 덕에 무수정.
+
+**시크릿/시드(Cloudflare)**: `wrangler secret put G2B_SERVICE_KEY`, `KAKAO_REST_KEY`. KV `kakao_token`에 로컬 `data/kakao_token.json` 시드(`--path`). 로컬 `wrangler dev`용은 `.dev.vars`(gitignore).
+
+**검증 완료**: `wrangler dev --test-scheduled`로 cron 트리거 → `[cron] 나라장터 8건, 신규 8건 (최초 실행 — 알림 생략)` 확인. 로컬 admin 로그인 후 `/api/open-bids.json`(KV, 8건)·`/api/analysis/{id}.json`(사전계산, 편차+TOP5)·`/api/mybid-list.json` 정상. 배포(버전 `ac4bf7ed`, gzip 738KB, startup 83ms, `schedule: 0 23 * * *` 등록) 후 login 307·`/api/*` 401(인증 정상) 확인.
+
+**⚠️ 미검증(사용자와 확인 예정)**: 실제 카카오 발송. 프로덕션 KV는 아직 `open_bids` 없음 → 첫 cron은 baseline(알림 없음). 카카오는 그 다음 신규건부터. 강제 검증하려면 baseline을 N-1건으로 시드하거나 cron을 임박 시각으로 임시 변경해 1회 실발송을 사용자와 함께 확인 필요.
 
 ---
 
 ## 6. 알려진 제약사항 / 미결정 사항
 
-- **서버 공개 배포 방법 미정** (Cloudflare Tunnel 추천했으나 사용자가 보류 중). 지금은 컴퓨터가 켜져 있고 `node server.js`가 실행 중이어야만 대시보드/카카오알림이 동작함.
-- **아이건설넷 로그인 전면 중단** (5.5장 참고) — 진행중 입찰/맞춤정보는 나라장터 연동으로 대체 완료(5.6장). 카카오알림만 아직 미재연결.
-- 나라장터 진행중 입찰 새로고침은 **수동 버튼만** — 자동/주기적 새로고침 없음(5.6장, 사용자 결정).
-- Cloudflare 정적 배포본은 아직 옛 아이건설넷 스냅샷(`webapp/data/snapshot/*.snapshot.json`, 2026-07-04 시점) 기준 — 나라장터 데이터로 최신화하려면 로컬에서 새로고침 후 그 스냅샷 파일들에 복사 → 커밋 → 푸시 필요.
+- **아이건설넷 로그인 전면 중단**(5.5장) → 나라장터 연동(5.6장) + 클라우드 자동 갱신·카카오 알림(5.7장)으로 대체 완료.
+- 배포본은 이제 **KV 기반 실시간**(정적 스냅샷 모드 폐지). KV가 비면 build-static이 만든 정적 파일로 폴백. `webapp/data/snapshot/*`은 이 폴백용으로만 유지.
+- 실제 카카오 발송은 아직 프로덕션에서 1회도 안 나감(5.7장 미검증 참고).
+- 카카오 refresh_token은 cron이 매일 돌면 자동 롤오버되어 만료 안 됨. cron이 ~30일 이상 중단되면 재인증 필요(엣지 케이스).
+- 안정회귀형/공격밀집형 밴드폭(SEM 배수, 히스토그램 bin폭 0.25%p)은 임의로 정한 파라미터 — 통계적으로 정교화 여지 있음.
+- TOP5 업체 예측(`predictCompanyBid`)은 업체의 **낙찰 건**만 학습 데이터로 씀(그 업체가 참여했지만 떨어진 건은 원천적으로 알 수 없음 — 아이건설넷 데이터 자체가 낙찰자만 보여줌). 따라서 "그 업체가 얼마면 이겼을지"의 근사치이지, 그 업체의 실제 내부 전략을 아는 건 아님.
+- 공동인증서 로그인은 자동화 불가(ID/PW 로그인만 가능) — 아이건설넷 자체 제약.
 - 안정회귀형/공격밀집형 밴드폭(SEM 배수, 히스토그램 bin폭 0.25%p)은 임의로 정한 파라미터 — 통계적으로 정교화 여지 있음.
 - TOP5 업체 예측(`predictCompanyBid`)은 업체의 **낙찰 건**만 학습 데이터로 씀(그 업체가 참여했지만 떨어진 건은 원천적으로 알 수 없음 — 아이건설넷 데이터 자체가 낙찰자만 보여줌). 따라서 "그 업체가 얼마면 이겼을지"의 근사치이지, 그 업체의 실제 내부 전략을 아는 건 아님.
 - 공동인증서 로그인은 자동화 불가(ID/PW 로그인만 가능) — 아이건설넷 자체 제약.

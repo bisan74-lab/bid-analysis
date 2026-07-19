@@ -43,12 +43,9 @@ function main() {
   const myBidList = readSnapshot('mybid_list.snapshot.json');
   const snapshotTime = openBids.updatedAt || myBidList.updatedAt || new Date().toISOString();
 
-  // 2) index.html에 정적 스냅샷 모드 플래그 주입 (app.js보다 먼저 로드되도록 head에 삽입)
-  const indexPath = path.join(DIST_DIR, 'index.html');
-  let html = fs.readFileSync(indexPath, 'utf8');
-  const flagScript = `<script>window.__SNAPSHOT_MODE__=true;window.__SNAPSHOT_TIME__=${JSON.stringify(snapshotTime)};</script>\n`;
-  html = html.replace('<script src="app.js">', flagScript + '<script src="app.js">');
-  fs.writeFileSync(indexPath, html, 'utf8');
+  // 2) (구) 정적 스냅샷 모드 플래그 주입은 제거됨. 이제 배포본은 Worker + KV(cron 자동갱신) 기반으로
+  //    실시간 동작하므로 "실시간 새로고침" 버튼도 정상 작동한다. 아래 정적 JSON들은 KV가 비어있는
+  //    최초 상태의 폴백 용도로만 생성한다.
 
   // 3) 통계/TOP5 정적 JSON (.json 확장자 필수 — Cloudflare Workers 정적 자산이 확장자 없는
   // 파일을 안정적으로 서빙하지 못해 빈 응답을 준 사례가 있었음)

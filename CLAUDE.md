@@ -49,8 +49,8 @@ npm start                        # http://localhost:4173
 - **공고별 분석 새 탭** (2026-07-19): "진행중 입찰 항목" 카드를 클릭하면 `analysis.html?id={posting_id}`가 새 탭으로 열림(`window.open`). "맞춤정보 등록 항목"은 기존처럼 인라인 확장 유지. 두 경로 모두 `/api/analysis/:postingId`를 공유.
 - **맞춤정보 재정의** (2026-07-19): 로그인 계정 저장검색 개념이 사라져서, "기초금액(추정가격)이 해당 업종 시공능력평가액 이하인 진행중 입찰"로 재정의(`lib/g2b.js`의 `fitsCapacity()`). 즉 "실제로 수주 가능한 규모"의 공고만 모음.
 - **카테고리 편차 반영 모델** (2026-07-19): `lib/analysis.js`의 `recommendBid(기초금액, 대업종, {종목, 발주처})` — 세부 종목 태그(CSV의 `종목` 컬럼, 처음 활용됨)와 발주처 단위로 낙찰률이 대업종 평균에서 얼마나 벗어나는지(표본 15건/8건 이상일 때만) 계산해서 tiers/전략밴드에 반영. 결과의 `appliedAdjustments` 필드로 UI에 표시됨.
-- `data/open_bids.json`: 나라장터 기반 캐시(수동 "실시간 새로고침" 클릭 시 갱신).
-- **카카오톡 "나에게 보내기" 자동 알림 — 중단됨** (2026-07-19, 스크래핑 의존이라 함께 중단). 설정 파일(`lib/kakao.js`, `webapp/kakao.local.md` 등)은 남아있어 나라장터 연동 후 재사용 가능. `scripts/notify.js`는 실행 즉시 종료하도록 막아둠. Windows 작업 스케줄러 `BidAnalysis-KakaoNotify` 태스크는 비활성화(Disabled) 상태.
+- `data/open_bids.json`: 로컬 나라장터 캐시(로컬 "실시간 새로고침" 클릭 시 갱신). 배포 환경은 이 파일이 아니라 **KV**를 씀(아래).
+- **완전 클라우드 자동 갱신 + 카카오 알림** (2026-07-19, `PROJECT_STATE.md` 5.7장): 배포된 Cloudflare Worker가 **매일 08시(KST) cron**으로 나라장터를 조회해 KV(`open_bids`/`mybid_list`/`analysis:{id}`)를 갱신하고, 이전 대비 신규 공고가 있으면 각 공고 분석 요약 + 리포트 링크를 **카카오톡으로 자동 발송**한다. 공용 lib(analysis/g2b/kakao/notifyMessage)는 fs 의존을 주입식으로 리팩터링해 로컬(server.js)·Worker가 공유. 과거 이력 CSV는 Worker 번들에 Text로 내장(`loadHistoryFromText`). 분석·요약은 순수 통계·문자열(=AI 토큰 0). 카카오 access_token은 run당 1회만 refresh. Windows 작업 스케줄러 `BidAnalysis-KakaoNotify`는 계속 비활성(클라우드 cron이 대체). `scripts/notify.js`도 계속 비활성.
 
 ## 참고 사항
 

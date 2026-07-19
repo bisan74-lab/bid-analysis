@@ -1,11 +1,12 @@
 name = "bid-analysis"
 compatibility_date = "2026-07-01"
+# 공용 lib(analysis/g2b/kakao)가 top-level에서 require('fs')/require('path')를 하므로 unenv 폴리필 필요.
+# (Worker 실행 경로에선 fs 함수를 호출하지 않음 — CSV는 번들 Text 임포트, 토큰/데이터는 KV 사용.)
+compatibility_flags = ["nodejs_compat"]
 
-# 이 프로젝트는 Node.js/Express + Playwright(헤드리스 브라우저)로 동작하는 로컬 앱이라
-# Cloudflare Workers 런타임에서 그대로 실행할 수 없습니다. 대신 webapp/build-static.js가
-# 빌드 시점 스냅샷(webapp/data/snapshot/*.json)을 정적 JSON으로 미리 만들어 webapp/dist에
-# 출력하고, webapp/worker/index.js가 그 정적 자산(ASSETS 바인딩)을 서빙하면서
-# 로그인 세션 인증(/, /api/*)과 관리자 계정(ADMIN_KV) 관리를 함께 처리합니다.
+# webapp/build-static.js가 빌드 시점 정적 JSON(폴백)을 webapp/dist에 만들고, webapp/worker/index.js가
+# 그 정적 자산(ASSETS)을 서빙하면서 로그인 인증 + KV 기반 진행중입찰/분석 데이터 + cron(나라장터 자동
+# 갱신·카카오 알림)을 처리합니다.
 main = "webapp/worker/index.js"
 
 [assets]
@@ -18,3 +19,13 @@ run_worker_first = true
 [[kv_namespaces]]
 binding = "ADMIN_KV"
 id = "1cd9fe319ed34d308e376376791e282f"
+
+# 매일 08:00 KST(= 23:00 UTC): 나라장터 조회 → KV 갱신 → 신규 입찰 시 카카오 알림.
+[triggers]
+crons = ["0 23 * * *"]
+
+# 과거 낙찰 이력 CSV를 Worker 번들에 문자열로 내장(analysis.loadHistoryFromText).
+[[rules]]
+type = "Text"
+globs = ["**/*.csv"]
+fallthrough = true

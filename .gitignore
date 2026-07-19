@@ -11,3 +11,4 @@ webapp/data/admins.json
 webapp/data/session-secret
 webapp/dist/
 .wrangler/
+.dev.vars

@@ -15,7 +15,11 @@ const fs = require('fs');
 const path = require('path');
 const { isGyeongnamCityRestricted } = require('./localFilter');
 
-const HISTORY_CSV = path.join(__dirname, '..', '..', 'data', 'raw', 'nbid_busan_gyeongnam_3y_20260704.csv');
+// 파일 경로는 Node에서만 쓰인다(Worker는 loadHistoryFromText로 CSV를 주입). __dirname을 top-level에서
+// 실행하면 번들 환경에 따라 문제될 수 있어, 지연 계산으로 둔다.
+function historyCsvPath() {
+  return path.join(__dirname, '..', '..', 'data', 'raw', 'nbid_busan_gyeongnam_3y_20260704.csv');
+}
 
 function parseCsvLine(line) {
   const out = [];
@@ -56,10 +60,9 @@ function parseOpenDate(s) {
 
 let _cache = null;
 
-function loadHistory() {
-  if (_cache) return _cache;
-  const raw = fs.readFileSync(HISTORY_CSV, 'utf8');
-  const lines = raw.split(/\r?\n/).filter(Boolean);
+// CSV 텍스트를 파싱해 이력 row 배열로 변환 (fs 비의존 — Node/Worker 공용).
+function parseHistory(csvText) {
+  const lines = csvText.split(/\r?\n/).filter(Boolean);
   const header = parseCsvLine(lines[0]);
   const idx = Object.fromEntries(header.map((h, i) => [h, i]));
 
@@ -97,8 +100,20 @@ function loadHistory() {
     if (isGyeongnamCityRestricted(row.발주처)) continue;
     rows.push(row);
   }
-  _cache = rows;
   return rows;
+}
+
+// Worker 등 fs가 없는 환경에서 번들된 CSV 텍스트로 이력 캐시를 채운다.
+function loadHistoryFromText(csvText) {
+  _cache = parseHistory(csvText);
+  return _cache;
+}
+
+// Node 환경: 파일에서 CSV를 읽어 캐시 (Worker에서 loadHistoryFromText로 이미 채웠으면 그걸 재사용).
+function loadHistory() {
+  if (_cache) return _cache;
+  _cache = parseHistory(fs.readFileSync(historyCsvPath(), 'utf8'));
+  return _cache;
 }
 
 function weightedPercentile(items, percentile) {
@@ -500,4 +515,4 @@ function predictCompanyBid(companyName, 기초금액, 대업종) {
   };
 }
 
-module.exports = { loadHistory, recommendBid, computeOverviewStats, getTopCompanies, predictCompanyBid, computeCategoryDeviation, RECENCY_WEIGHTS };
+module.exports = { loadHistory, loadHistoryFromText, parseHistory, recommendBid, computeOverviewStats, getTopCompanies, predictCompanyBid, computeCategoryDeviation, RECENCY_WEIGHTS };

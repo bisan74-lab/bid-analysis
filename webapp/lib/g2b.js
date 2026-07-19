@@ -6,9 +6,11 @@ const fs = require('fs');
 const path = require('path');
 const { isGyeongnamCityRestricted } = require('./localFilter');
 
-const KEY_PATH = path.join(__dirname, '..', 'g2b.local.md');
-const CACHE_PATH = path.join(__dirname, '..', 'data', 'open_bids.json');
-const MYBID_CACHE_PATH = path.join(__dirname, '..', 'data', 'mybid_list.json');
+// 파일 경로/캐시 쓰기는 Node(로컬)에서만 사용. Worker는 buildBidLists 등 순수함수만 씀 →
+// __dirname 실행을 top-level에서 하지 않도록 지연 계산.
+const keyPath = () => path.join(__dirname, '..', 'g2b.local.md');
+const cachePath = () => path.join(__dirname, '..', 'data', 'open_bids.json');
+const myBidCachePath = () => path.join(__dirname, '..', 'data', 'mybid_list.json');
 
 const ENDPOINT = 'https://apis.data.go.kr/1230000/ad/BidPublicInfoService/getBidPblancListInfoCnstwk';
 
@@ -49,7 +51,7 @@ function classify(title) {
 }
 
 function readServiceKey() {
-  const text = fs.readFileSync(KEY_PATH, 'utf8');
+  const text = fs.readFileSync(keyPath(), 'utf8');
   const m = text.match(/일반 인증키\(Decoding\):\s*(\S+)/);
   if (!m) throw new Error('webapp/g2b.local.md에서 인증키를 찾을 수 없습니다.');
   return m[1];
@@ -74,8 +76,9 @@ async function fetchPage(serviceKey, { pageNo, numOfRows, bgn, end }) {
 // 최근 N일간(공고게시일시 기준) 전국 공사 입찰공고를 가져온다. 나라장터 API 자체가 지역/업종 파라미터를
 // 안정적으로 지원하는지 불확실해서(공식 문서에서 명확히 확인 못함) 일단 전국을 받아 이후 단계에서
 // 부산/경남 + 우리 업종으로 좁힌다. 최근 2주 기준 전국 공사공고는 numOfRows=100 기준 수십 페이지 내외.
-async function fetchRecentCnstwkBids({ days = 14 } = {}) {
-  const serviceKey = readServiceKey();
+// serviceKey는 인자로 받는다 (Node는 파일에서 읽어 넘기고, Worker는 env secret을 넘김 — fs 비의존).
+async function fetchRecentCnstwkBids({ serviceKey, days = 14 } = {}) {
+  if (!serviceKey) throw new Error('serviceKey가 필요합니다.');
   const end = new Date();
   const bgn = new Date(end.getTime() - days * 24 * 60 * 60 * 1000);
   const numOfRows = 100;
@@ -148,20 +151,27 @@ function fitsCapacity(item) {
   return item.추정가격 <= limit;
 }
 
-async function refreshAndCache({ days = 14 } = {}) {
-  const raw = await fetchRecentCnstwkBids({ days });
-  const items = dedupe(raw.map(normalizeItem).filter(Boolean));
-
-  const openPayload = { updatedAt: new Date().toISOString(), count: items.length, items, source: 'g2b' };
-
+// 나라장터 원본 아이템 배열 → 정규화·필터링된 진행중 입찰(open) + 수주 가능 규모(mybid) 목록.
+// 순수함수(fs 비의존) — Node/Worker 공용. 캐시 페이로드 포맷까지 만들어 반환.
+function buildBidLists(rawItems, { now = new Date() } = {}) {
+  const items = dedupe(rawItems.map(normalizeItem).filter(Boolean));
+  const ts = now.toISOString();
+  const openPayload = { updatedAt: ts, count: items.length, items, source: 'g2b' };
   const myBidItems = items.filter(fitsCapacity);
-  const myBidPayload = { updatedAt: new Date().toISOString(), count: myBidItems.length, items: myBidItems, source: 'g2b-capacity-fit' };
+  const myBidPayload = { updatedAt: ts, count: myBidItems.length, items: myBidItems, source: 'g2b-capacity-fit' };
+  return { openPayload, myBidPayload };
+}
 
-  fs.mkdirSync(path.dirname(CACHE_PATH), { recursive: true });
-  fs.writeFileSync(CACHE_PATH, JSON.stringify(openPayload, null, 1), 'utf8');
-  fs.writeFileSync(MYBID_CACHE_PATH, JSON.stringify(myBidPayload, null, 1), 'utf8');
+// Node 로컬 전용: 키를 파일에서 읽어 수집 → JSON 캐시 파일로 저장 (로컬 "실시간 새로고침" 버튼용).
+async function refreshAndCache({ days = 14 } = {}) {
+  const raw = await fetchRecentCnstwkBids({ serviceKey: readServiceKey(), days });
+  const { openPayload, myBidPayload } = buildBidLists(raw);
+
+  fs.mkdirSync(path.dirname(cachePath()), { recursive: true });
+  fs.writeFileSync(cachePath(), JSON.stringify(openPayload, null, 1), 'utf8');
+  fs.writeFileSync(myBidCachePath(), JSON.stringify(myBidPayload, null, 1), 'utf8');
 
   return openPayload;
 }
 
-module.exports = { refreshAndCache, fetchRecentCnstwkBids, classify, CAPACITY_LIMIT };
+module.exports = { refreshAndCache, fetchRecentCnstwkBids, buildBidLists, normalizeItem, classify, CAPACITY_LIMIT };

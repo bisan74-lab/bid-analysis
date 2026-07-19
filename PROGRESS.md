@@ -127,3 +127,15 @@
 - **실측 검증**: `g2b.refreshAndCache()` 실제 호출 → 8건(전부 포장 또는 상.하수도로 정확히 분류, 부산/경남만). 로컬 서버 구동 후 Playwright로 로그인 → 진행중 입찰 카드 클릭 → 새 탭에서 추천가/전략밴드/**반영된 카테고리 편차**(예: 김해국토관리사무소 발주 건에서 종목 "포장" -0.05%p, 해당 발주처 +0.11%p, 표본 113건)/TOP5예측 전부 정상 표시 확인. `build-static.js` 재실행해서 `dist/analysis.html` 및 `appliedAdjustments` 필드 포함 확인.
 - 테스트 중 로그인 페이지에서 처음 보는 ID로 자동생성된 테스트용 admin 계정(비밀번호 변경 강제됨)이 생겼길래, 테스트 종료 후 `data/admins.json`/`data/session-secret` 삭제해서 정리(둘 다 없으면 자동 재생성되는 파일이라 안전).
 - **다음에 할 일**: Cloudflare 정적 배포본은 아직 옛 스냅샷(2026-07-04) 기준이라 나라장터 데이터가 안 보임 — 최신화하려면 로컬에서 새로고침 후 스냅샷 파일 복사→커밋→푸시. 카카오 자동알림도 아직 나라장터 기반으로 재연결 안 됨.
+- (같은 날 후속) 스냅샷을 나라장터 8건으로 갱신·배포(`31bde3a`)하고 모달 CSS 버그도 수정(`0b4b44d`). 배포 주소 재확인: https://bid-analysis.bisan74.workers.dev
+
+## 2026-07-19 (세션 2): 완전 클라우드 자동 갱신 + 신규 입찰 카카오 알림
+
+- 사용자 요청: 매일 08시 자동 갱신 + 신규 입찰 시 분석 요약·리포트 링크를 카카오톡 자동 발송(완전 클라우드, 토큰 소비 최소화). → Cloudflare Cron으로 구현. 상세 설계·검증은 `PROJECT_STATE.md` 5.7장.
+- **핵심 판단**: 실시간 분석(`recommendBid`)·카카오 요약은 순수 통계·문자열이라 **AI 토큰 0**. "토큰 최소화"는 카카오 access_token을 run당 1회만 refresh + 신규 다수 시 합본 발송으로 달성.
+- **최대 리스크였던 부분(과거 이력 CSV를 Worker에 넣기)**: 3.3MB CSV가 gzip 744KB라 무료 3MB 한도 안. `[[rules]] type="Text"`로 번들 임포트 → `analysis.loadHistoryFromText()`. `wrangler dev`로 번들·모듈로드 성공 확인(startup 83ms). `nodejs_compat` 플래그로 공용 lib의 `require('fs')` 폴리필(실행경로에선 fs 미호출).
+- fs 의존을 주입식으로 리팩터링해 로컬(server.js)·Worker가 lib를 공유(analysis/g2b/kakao/notifyMessage). server.js는 하위호환 export라 무수정. Node 스모크테스트 + wrangler dev 양쪽 통과.
+- Worker에 `scheduled()` cron 핸들러 + KV 기반 데이터 라우트(+정적 폴백) + 수동 새로고침 라우트 추가. 공고별 분석은 cron이 미리 계산해 KV(`analysis:{id}`)에 저장 → 요청당 CPU 최소화(무료 10ms 한도 대비 안전).
+- 배포된 사이트는 이제 정적 스냅샷 모드 폐지 → KV 실시간. 그래서 build-static의 `__SNAPSHOT_MODE__` 주입 제거(새로고침 버튼 정상화).
+- Cloudflare에 secret 2개(G2B/KAKAO) 등록 + KV `kakao_token` 시드(`--path`로, 값 인라인 노출 방지). 배포 성공(버전 `ac4bf7ed`, `schedule: 0 23 * * *` 등록). login 307·`/api/*` 401 확인.
+- **미검증(다음 세션/사용자와)**: 실제 카카오 발송. 프로덕션 첫 cron은 baseline(알림 없음)이라, 강제 확인하려면 baseline을 N-1건 시드하거나 cron을 임박 시각으로 임시 변경해 1회 실발송을 사용자와 함께 봐야 함. `.dev.vars`(gitignore)에 로컬 dev용 키 보관.
