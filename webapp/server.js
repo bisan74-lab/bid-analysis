@@ -95,12 +95,9 @@ app.get('/api/mybid-list.json', (req, res) => {
 });
 
 app.post('/api/open-bids/refresh', async (req, res) => {
-  try {
-    const result = await scraper.refreshOpenBids(); // 진행중 입찰 + 맞춤정보 함께 갱신됨
-    res.json(result);
-  } catch (e) {
-    res.status(500).json({ error: String(e.message || e) });
-  }
+  // 아이건설넷이 자동 로그인을 감지하고 경고를 띄운 이후로 로그인 스크래핑을 전면 중단함 (2026-07-19).
+  // 대체 데이터 소스(나라장터 OpenAPI) 연동 전까지는 비활성 상태로 둔다.
+  res.status(410).json({ error: '아이건설넷 자동 로그인은 중단되었습니다. 나라장터 연동으로 대체 예정입니다.' });
 });
 
 app.get('/api/analysis/:postingId', (req, res) => {

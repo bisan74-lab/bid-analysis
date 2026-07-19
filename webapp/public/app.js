@@ -507,26 +507,8 @@ function renderBidList(listElId, data, { emptyMsg, updatedElId, countLabel } = {
 }
 
 async function doRefresh() {
-  if (window.__SNAPSHOT_MODE__) {
-    alert('이 페이지는 정적 스냅샷 버전입니다 (실시간 재스크래핑 불가).\n실시간 새로고침/카카오 알림은 로컬에서 구동 중인 앱을 이용해주세요.');
-    return;
-  }
-  const btn = document.getElementById('refresh-btn');
-  btn.disabled = true;
-  btn.textContent = '새로고침 중… (로그인+스크래핑, 최대 1분)';
-  try {
-    const res = await fetch('/api/open-bids/refresh', { method: 'POST' }); // 진행중 입찰 + 맞춤정보 함께 갱신됨
-    const data = await res.json();
-    if (data.error) throw new Error(data.error);
-    renderBidList('open-bids-list', data, { emptyMsg: '진행중인 입찰 항목이 없습니다.', updatedElId: 'open-bids-updated', countLabel: '부산/경남' });
-    const myBidData = await loadMyBidList();
-    renderBidList('mybid-list', myBidData, { emptyMsg: '맞춤정보에 등록된 항목이 없습니다.', updatedElId: 'mybid-updated', countLabel: '전체' });
-  } catch (e) {
-    alert('새로고침 실패: ' + e.message);
-  } finally {
-    btn.disabled = false;
-    btn.textContent = '실시간 새로고침';
-  }
+  // 아이건설넷 자동 로그인 중단(2026-07-19) — 나라장터 연동으로 대체 전까지 비활성화.
+  alert('아이건설넷 자동 로그인은 중단되었습니다.\n진행중 입찰 정보는 나라장터 연동으로 대체될 예정입니다.');
 }
 
 async function loadTopCompanies() {
@@ -742,15 +724,15 @@ async function init() {
   setupPasswordModal();
   if (me.mustChangePassword) openPasswordModal(true);
 
+  const refreshBtn = document.getElementById('refresh-btn');
+  refreshBtn.textContent = '실시간 새로고침 (중단됨)';
+  refreshBtn.classList.add('secondary');
   if (window.__SNAPSHOT_MODE__) {
-    const btn = document.getElementById('refresh-btn');
-    btn.textContent = '정적 스냅샷 버전';
-    btn.classList.add('secondary');
     const banner = document.createElement('p');
     banner.className = 'section-sub';
     banner.style.cssText = 'margin:-10px 0 16px;color:var(--warning)';
     const t = window.__SNAPSHOT_TIME__ ? new Date(window.__SNAPSHOT_TIME__).toLocaleString('ko-KR') : '알 수 없음';
-    banner.textContent = `⚠ 정적 스냅샷 버전입니다 (스냅샷 시각: ${t}). 실시간 새로고침·카카오 알림은 로컬 앱에서만 동작합니다.`;
+    banner.textContent = `⚠ 정적 스냅샷 버전입니다 (스냅샷 시각: ${t}).`;
     document.querySelector('header.top').insertAdjacentElement('afterend', banner);
   }
   document.getElementById('refresh-btn').addEventListener('click', doRefresh);
