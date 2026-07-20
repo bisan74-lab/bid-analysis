@@ -106,8 +106,12 @@ function normalizeItem(raw) {
   const 발주처 = raw.dminsttNm || raw.ntceInsttNm || '';
   if (isGyeongnamCityRestricted(발주처)) return null;
 
-  const closeAt = raw.bidClseDt ? new Date(raw.bidClseDt.replace(' ', 'T')) : null;
-  const openAt = raw.opengDt ? new Date(raw.opengDt.replace(' ', 'T')) : null;
+  // 나라장터 일시(bidClseDt/opengDt)는 한국시간(KST)이다. 타임존 접미사 없이 파싱하면 실행환경
+  // 로컬시간으로 해석돼(로컬=KST면 맞지만 Worker=UTC면 9시간 늦게 해석) 만료 공고가 오래 남는다.
+  // '+09:00'을 붙여 항상 KST로 고정 → 런타임 타임존과 무관하게 동일하게 판정.
+  const toKst = (s) => s ? new Date(s.replace(' ', 'T') + '+09:00') : null;
+  const closeAt = toKst(raw.bidClseDt);
+  const openAt = toKst(raw.opengDt);
   const deadline = closeAt || openAt;
   if (deadline && deadline.getTime() < Date.now()) return null; // 이미 마감 — "진행중"만 남김
 

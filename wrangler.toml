@@ -20,6 +20,11 @@ run_worker_first = true
 binding = "ADMIN_KV"
 id = "1cd9fe319ed34d308e376376791e282f"
 
+# Workers Logs 활성화 — cron(scheduled) 실행 로그를 사후에도 조회할 수 있게 해서 "오늘 아침 cron이
+# 돌았는지/신규 몇 건이었는지"를 확인 가능하게 한다. (console.log/error가 대시보드 Logs에 남음)
+[observability]
+enabled = true
+
 # 매일 08:00 KST(= 23:00 UTC): 나라장터 조회 → KV 갱신 → 신규 입찰 시 카카오 알림.
 [triggers]
 crons = ["0 23 * * *"]
