@@ -20,6 +20,13 @@ const CAPACITY_LIMIT = {
   '상.하수도': 1_877_206_000,
 };
 
+// 추정가격(부가세 제외) → 기초금액(부가세 포함, 공개 금액) 환산 계수.
+// 예비가격·사정률·예정가격 산정의 기준점은 반드시 "기초금액"이어야 하는데(참여자 지적: 추정가격 기준으로
+// 하면 실제 산출가와 괴리가 큼), 나라장터 목록조회 API는 기초금액을 직접 주지 않고 추정가격(presmptPrce)만
+// 준다. 과거 낙찰이력 9,636건에서 기초금액/추정가격 비율은 94.7%가 정확히 1.1, 중앙값·P5·P95 모두 1.1
+// (공사 부가세 10%)로 확인돼, 이 계수로 기초금액을 복원한다.
+const ESTIMATE_TO_BASE = 1.1;
+
 const TARGET_REGION_PREFIXES = ['부산', '경상남도', '경남'];
 
 // 공고명 키워드 → 대업종(기존 pickGroup()이 그대로 재사용하도록 data/raw CSV와 동일 표기) / 종목(세분화 태그,
@@ -118,6 +125,10 @@ function normalizeItem(raw) {
   const estimated = Number(raw.presmptPrce) || Number(raw.bdgtAmt) || null;
   const 추정가격 = estimated && estimated > 1 ? estimated : null; // 전자견적 등 1원 더미값 배제
 
+  // 나라장터 목록조회는 기초금액을 직접 주지 않으므로 추정가격×1.1(부가세)로 복원한다. 모든 사정률/예비가격/
+  // 예정가격 추정의 기준점을 기초금액으로 고정하기 위함(추정가격 기준일 때 생기던 ~10% 괴리 제거).
+  const 기초금액 = 추정가격 ? Math.round(추정가격 * ESTIMATE_TO_BASE) : null;
+
   return {
     posting_id: `${raw.bidNtceNo}-${raw.bidNtceOrd}`,
     title: raw.bidNtceNm,
@@ -125,7 +136,8 @@ function normalizeItem(raw) {
     대업종: category.대업종,
     발주처,
     지역: region,
-    기초금액: null, // 나라장터 목록 조회로는 정확한 기초금액을 알 수 없음 — 추정가격만 제공
+    기초금액,             // 추정가격×1.1로 복원한 값(부가세 포함, 공개 기초금액 근사)
+    기초금액추정: 기초금액 != null, // 나라장터가 직접 준 값이 아니라 환산 추정임을 표시
     추정가격,
     등록마감일: raw.bidClseDt || null,
     개찰일: raw.opengDt || null,

@@ -171,6 +171,15 @@ section > .section-sub { font-size: 12.5px; color: var(--text-secondary); margin
 .strategy-title { font-size: 12.5px; font-weight: 700; margin: 0; }
 .strategy-sub { font-size: 11px; font-weight: 400; color: var(--text-muted); margin-left: 4px; }
 
+.avalue-inputs { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
+.avalue-inputs label { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--text-secondary); }
+.avalue-inputs input {
+  width: 150px; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--bg); color: var(--text-primary); font-size: 13px; font-variant-numeric: tabular-nums;
+}
+.avalue-result { margin-top: 10px; font-size: 12.5px; color: var(--text-secondary); }
+.avalue-result .av-out { font-size: 16px; font-weight: 700; color: var(--text-primary); font-variant-numeric: tabular-nums; margin-left: 6px; }
+
 .empty-note { color: var(--text-muted); font-size: 13px; padding: 20px; text-align: center; }
 
 table.data-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }

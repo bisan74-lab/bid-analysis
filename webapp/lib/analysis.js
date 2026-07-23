@@ -199,6 +199,36 @@ function computeCategoryDeviation(group, matcher, baselineMean, { minSample = 15
   return { delta: subsetMean - baselineMean, sampleSize: subset.length };
 }
 
+// 투찰금액(낙찰하한가) 계산. A값(국민연금·건강보험료·퇴직공제부금·산업안전보건관리비 등 낙찰률과
+// 무관하게 실비로 보전되는 고정비)은 낙찰률 할인 대상에서 제외되므로, 예정가격에서 A값을 먼저 빼고
+// 낙찰하한율을 곱한 뒤 A값을 그대로 다시 더한다. A값이 없거나 0이면 단순 곱셈으로 자동 축약된다.
+//   A값 적용:  (예정가격 − A값) × 낙찰하한율 + A값
+//   A값 미적용: 예정가격 × 낙찰하한율
+// 낙찰하한율/예가율/낙찰률은 모두 비율(소수, 예: 0.89745) 단위로 다룬다.
+function computeTuchalAmount(예정가격, 낙찰하한율, A값 = 0) {
+  if (예정가격 == null || 낙찰하한율 == null) return null;
+  const a = Number(A값) || 0;
+  return Math.round((예정가격 - a) * 낙찰하한율 + a);
+}
+
+// 복수예비가격 → 예정가격 확률 분포.
+// 실제 예정가격은 (기초금액 ±2~3% 범위에서 난수로 생성된) 15개 복수예비가격 중, 전체 입찰자가 가장 많이
+// 선택한 다빈도 4개의 산술평균으로 정해진다. 개별 추첨 결과는 관측할 수 없지만, 과거 실현된 예가율(예정가격
+// ÷기초금액) 분포가 "이번 기초금액에서 예정가격이 확률적으로 어느 구간에 떨어지는가"의 경험적 근사가 된다.
+// 단일 점(평균)보다 이 확률 밴드로 보는 것이 난수 성격을 반영한다.
+function computeJeonggaDistribution(group, 기초금액, pcts = [10, 25, 50, 75, 90]) {
+  const items = group.filter(r => r.예가율 != null).map(r => ({ value: r.예가율, weight: r.weight }));
+  return pcts.map(p => {
+    const ratio = weightedPercentile(items, p);
+    return {
+      pct: p,
+      예가율: ratio,
+      사정률: ratio == null ? null : ratio - 1, // 기초금액 대비 편차(±). 보통 ±2~3% 이내
+      예정가격: ratio == null ? null : Math.round(기초금액 * ratio),
+    };
+  });
+}
+
 // 종목: 진행중 공고의 세분화 종목 태그 조합 문자열(예: "포장/토공"). 대업종보다 세밀한 축이라, 같은
 // 포장/상하수도군 안에서도 세부 공종에 따라 낙찰률이 조금씩 다른 경향을 잡아내는 데 쓴다.
 // 발주처: 같은 발주처가 비슷한 공사를 반복 발주하는 경우(예: 특정 학교/기관) 그 발주처만의 성향을 잡는다.
@@ -276,11 +306,16 @@ function recommendBid(기초금액, 대업종, { 종목, 발주처 } = {}) {
     구간표본비중: densest.share,
   };
 
+  // 복수예비가격 기반 예정가격 확률 분포(경험적). tiers/전략밴드는 이 분포의 중앙(추정예정가격)을 기준으로
+  // 낙찰률을 곱한 값이지만, 예정가격 자체가 난수로 흔들리므로 분포도 함께 제공해 상·하방 위험을 보여준다.
+  const 예정가격분포 = computeJeonggaDistribution(group, 기초금액);
+
   return {
     기초금액,
     추정예정가격: estimatedApprovedPrice,
     추정예가율: estRatio,
     표본수: winRatioItems.length,
+    예정가격분포,
     tiers,
     stableRegression,
     aggressiveCluster,
@@ -515,4 +550,4 @@ function predictCompanyBid(companyName, 기초금액, 대업종) {
   };
 }
 
-module.exports = { loadHistory, loadHistoryFromText, parseHistory, recommendBid, computeOverviewStats, getTopCompanies, predictCompanyBid, computeCategoryDeviation, RECENCY_WEIGHTS };
+module.exports = { loadHistory, loadHistoryFromText, parseHistory, recommendBid, computeOverviewStats, getTopCompanies, predictCompanyBid, computeCategoryDeviation, computeTuchalAmount, computeJeonggaDistribution, RECENCY_WEIGHTS };

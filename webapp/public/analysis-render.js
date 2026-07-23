@@ -76,6 +76,67 @@ function renderCompanyPredictions(topCompanies) {
   `;
 }
 
+// 복수예비가격 → 예정가격 확률 분포. 15개 예비가격 중 다빈도 4개 평균으로 정해지는 예정가격이,
+// 과거 예가율 분포 기준으로 이번 기초금액에서 확률적으로 어느 구간에 떨어지는지 밴드로 보여준다.
+function renderJeonggaDistribution(rec) {
+  const dist = rec.예정가격분포;
+  if (!dist || !dist.length) return '';
+  const color = seriesColor(2); // teal/green 계열
+  const label = { 10: 'P10(하방)', 25: 'P25', 50: '중앙(P50)', 75: 'P75', 90: 'P90(상방)' };
+  const tiles = dist.map(d => {
+    const emphasize = d.pct === 50;
+    const sign = d.사정률 != null && d.사정률 >= 0 ? '+' : '';
+    return `
+      <div class="tier-tile" style="border-color:${color}${emphasize ? 'aa' : '55'}">
+        <div class="p">${label[d.pct] || ('P' + d.pct)}</div>
+        <div class="amt">${fmtWon(d.예정가격)}</div>
+        <div class="ratio">사정률 ${d.사정률 == null ? '-' : sign + (d.사정률 * 100).toFixed(2) + '%'}</div>
+      </div>`;
+  }).join('');
+  return `
+    <div class="strategy-block">
+      <div class="strategy-group">
+        <p class="strategy-title" style="color:${color}">예정가격 확률 분포 <span class="strategy-sub">— 복수예비가격 15개 중 다빈도 4개 평균으로 정해지는 예정가격의 확률 구간(과거 예가율 분포 기준)</span></p>
+        <div class="tier-grid">${tiles}</div>
+      </div>
+    </div>
+  `;
+}
+
+// A값 적용 투찰금액(낙찰하한가) 계산기. (예정가격 − A값) × 낙찰하한율 + A값.
+// 예정가격/낙찰하한율은 추정치를 프리필하되, 실제 공고의 A값·낙찰하한율을 넣으면 즉시 재계산된다.
+function renderAValueCalculator(rec) {
+  const 예정가격 = rec.추정예정가격 ?? '';
+  // 낙찰하한율 프리필: 안정회귀형 중앙 낙찰률(경험적 유효 낙찰하한율 근사)을 %로.
+  const 하한율 = rec.stableRegression && rec.stableRegression.사정률중앙 != null
+    ? (rec.stableRegression.사정률중앙 * 100).toFixed(3) : '87.745';
+  const 초기투찰 = 예정가격 ? fmtWon(Math.round(예정가격 * (Number(하한율) / 100))) : '-'; // A값 0 기준 초기값
+  return `
+    <div class="strategy-block">
+      <div class="strategy-group avalue-calc">
+        <p class="strategy-title">투찰금액 계산기 (A값 적용) <span class="strategy-sub">— (예정가격 − A값) × 낙찰하한율 + A값. A값은 노무비·보험료·산업안전보건관리비 등 낙찰률 할인 대상에서 제외되는 고정 실비</span></p>
+        <div class="avalue-inputs">
+          <label>예정가격(원)<input type="number" class="av-jeongga" value="${예정가격}" oninput="krsCalcTuchal(this)"></label>
+          <label>낙찰하한율(%)<input type="number" step="0.001" class="av-rate" value="${하한율}" oninput="krsCalcTuchal(this)"></label>
+          <label>A값(원)<input type="number" class="av-a" value="0" oninput="krsCalcTuchal(this)"></label>
+        </div>
+        <div class="avalue-result">투찰금액 <b class="av-out">${초기투찰}</b></div>
+      </div>
+    </div>
+  `;
+}
+
+// 계산기 입력 변화 시 호출(인라인 oninput). 소속 그룹 내 입력값으로 투찰금액을 재계산해 표시.
+function krsCalcTuchal(el) {
+  const box = el.closest('.avalue-calc');
+  if (!box) return;
+  const 예정가격 = Number(box.querySelector('.av-jeongga').value) || 0;
+  const 하한율 = (Number(box.querySelector('.av-rate').value) || 0) / 100;
+  const A값 = Number(box.querySelector('.av-a').value) || 0;
+  const 투찰 = Math.round((예정가격 - A값) * 하한율 + A값);
+  box.querySelector('.av-out').textContent = Number.isFinite(투찰) && 예정가격 > 0 ? fmtWon(투찰) : '-';
+}
+
 // 공고의 세부 종목/발주처 특성이 기준 낙찰률에서 얼마나 벗어나는지(작은 편차) 반영한 경우, 그 내역을 보여준다.
 function renderAppliedAdjustments(adjustments) {
   if (!adjustments || !adjustments.length) return '';
@@ -98,11 +159,20 @@ function renderAppliedAdjustments(adjustments) {
 function renderAnalysisBody(data) {
   if (data.error) return `<div class="empty-note">${data.error}</div>`;
   const rec = data.recommendation;
+  const item = data.item || {};
+  // 기초금액 기준 표기: 모든 사정률/예비가격/예정가격 추정은 기초금액을 기준점으로 한다.
+  const baseNote = item.기초금액추정
+    ? ` <span style="color:var(--text-secondary)">— 기초금액은 나라장터 추정가격 ${fmtWon(item.추정가격)} × 1.1(부가세) 환산</span>`
+    : '';
   return `
     <div style="font-size:12.5px;color:var(--text-secondary)">
+      기준 <b style="color:var(--text-primary)">기초금액 ${fmtWon(rec.기초금액)}</b>${baseNote}
+    </div>
+    <div style="font-size:12.5px;color:var(--text-secondary);margin-top:2px">
       추정 예정가격 <b style="color:var(--text-primary)">${fmtWon(rec.추정예정가격)}</b>
       (기초금액 대비 ${(rec.추정예가율 * 100).toFixed(2)}%, 표본 ${rec.표본수.toLocaleString('ko-KR')}건)
     </div>
+    ${renderJeonggaDistribution(rec)}
     <div class="tier-grid">
       ${rec.tiers.map((t, i) => `
         <div class="tier-tile" style="border-color:${seriesColor(i)}55">
@@ -114,6 +184,7 @@ function renderAnalysisBody(data) {
     </div>
     ${renderStrategyTiles(rec)}
     ${renderAppliedAdjustments(rec.appliedAdjustments)}
+    ${renderAValueCalculator(rec)}
     ${renderCompanyPredictions(data.topCompanies)}
   `;
 }
