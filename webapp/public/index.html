@@ -45,6 +45,7 @@
       과거 낙찰 사례를 <b>최근1년 / 1~2년전 / 2~3년전</b> 3개 구간으로 나누고, 반감기 1년의 지수가중으로 최신 데이터에 더 높은 비중을 둡니다.
       <div class="weight-chips" id="methodology-weights"></div>
       <div style="margin-top:10px">
+        <span class="badge-new">NEW</span>
         모든 추정의 기준점은 반드시 <b>기초금액(부가세 포함 공개 금액)</b>입니다. 나라장터 목록조회는 기초금액을 직접 주지 않고
         추정가격(부가세 제외)만 제공하므로, 과거 이력 9,636건에서 확인된 비율(94.7%가 정확히 1.1)을 근거로
         <b>기초금액 = 추정가격 × 1.1</b>로 복원해 사용합니다. (추정가격을 그대로 기준으로 쓰면 실제 산출가와 ~10% 괴리가 생김.)
@@ -52,6 +53,7 @@
         가중치를 반영한 과거 <b>낙찰률(1순위금액÷예정가격)</b>의 백분위수를 곱해 확률 구간별(100/80/65/50%) 추천 입찰가를 계산합니다.
       </div>
       <div style="margin-top:10px">
+        <span class="badge-new">NEW</span>
         실제 예정가격은 기초금액 ±2~3%에서 난수로 생성된 <b>15개 복수예비가격</b> 중 전체 입찰자가 가장 많이 선택한
         <b>다빈도 4개의 산술평균</b>으로 정해집니다. 이 난수성을 반영해 상세분석에는 과거 예가율 분포 기준
         <b>예정가격 확률 분포(P10~P90)</b>를 함께 표시합니다.
@@ -135,12 +137,16 @@
   </section>
 
   <section>
-    <h2>AI 예정가격 예측 검증</h2>
+    <h2>AI 예정가격 예측 검증 <span class="badge-new">NEW</span></h2>
     <p class="section-sub">
       예정가격은 발주처가 사전에 확정한 "복수예비가격" 추첨(후보 15개 중 4개 평균)으로 정해지는 준-랜덤 값입니다.
       과거 낙찰 이력 중 <b>기초금액/종목/발주처/지역/개찰일/참여업체수</b>만 보고 (실제 예정가격은 숨긴 채) AI가 추론으로
-      예정가격을 예측한 뒤, 실제값과 비교해 정확도를 검증한 결과입니다. "기존 통계모델"은 종목군(포장/상하수도) 평균
-      예가율만 적용하는 방식이고, "AI 추론"은 여기에 발주처별 축소추정(shrinkage)을 더한 방식입니다.
+      예정가격을 예측한 뒤, 실제값과 비교해 정확도를 검증한 결과입니다. 세 방식을 비교합니다:
+      <b>기존 통계모델</b>(종목군 평균 예가율만 적용), <b>AI 추론</b>(발주처 특성을 사람처럼 추론),
+      그리고 <b class="highlight-new">개선 통계모델(NEW)</b> — AI가 수동으로 하던 "발주처별 예가율 편차 → 축소추정(shrinkage, k=20)"을
+      코드로 재현·검증 가능하게 만든 모델입니다. 대상 공고 자신은 통계에서 제외(leave-one-out)해 공정하게 채점합니다.
+      <br>결과적으로 세 모델의 오차율이 0.596~0.599%로 사실상 동률인데, 이는 예정가격이 설계상 준-랜덤(복수예비가격 추첨)이라
+      발주처/종목 패턴으로도 유의미하게 더 맞히기 어렵다는 이론과 일치합니다.
     </p>
     <div id="ai-prediction-summary" class="stat-grid"></div>
     <div class="charts-grid" style="margin-top:16px">
@@ -153,7 +159,7 @@
     <button id="ai-table-toggle" class="toggle-link" style="margin-top:12px">샘플 상세 결과 보기</button>
     <div id="ai-table-wrap" style="display:none;margin-top:10px" class="table-scroll">
       <table class="data-table">
-        <thead><tr><th>공고</th><th>기초금액</th><th>실제 예정가격</th><th>AI 예측</th><th>AI 오차율</th><th>기존모델 오차율</th><th>근거</th></tr></thead>
+        <thead><tr><th>공고</th><th>기초금액</th><th>실제 예정가격</th><th>AI 예측</th><th>AI 오차율</th><th>기존모델 오차율</th><th>개선모델 오차율</th><th>근거</th></tr></thead>
         <tbody id="ai-table-body"></tbody>
       </table>
     </div>

@@ -52,6 +52,10 @@ function main() {
     const baseline = analysis.recommendBid(feature.기초금액, feature.대업종);
     const baselineError = (baseline.추정예정가격 - answer.예정가격) / answer.예정가격;
 
+    // 개선 통계모델: 발주처별 예가율 편차를 축소추정으로 반영한 예정가격 예측(2026-07-23 추가).
+    const improved = analysis.predictJeonggaPrice(feature);
+    const improvedError = (improved.예측예정가격 - answer.예정가격) / answer.예정가격;
+
     rows.push({
       posting_id: postingId,
       기초금액: answer.기초금액,
@@ -60,12 +64,16 @@ function main() {
       AI오차율: aiError,
       기존모델예측예정가격: baseline.추정예정가격,
       기존모델오차율: baselineError,
+      개선모델예측예정가격: improved.예측예정가격,
+      개선모델오차율: improvedError,
+      개선모델근거: improved.근거,
       근거: pred.근거 || null,
     });
   }
 
   const aiSummary = summarizeErrors(rows.map(r => r.AI오차율));
   const baselineSummary = summarizeErrors(rows.map(r => r.기존모델오차율));
+  const improvedSummary = summarizeErrors(rows.map(r => r.개선모델오차율));
 
   const report = {
     scoredAt: new Date().toISOString(),
@@ -75,6 +83,7 @@ function main() {
     remaining: features.length - predMap.size,
     ai: aiSummary,
     baseline: baselineSummary,
+    improved: improvedSummary,
     rows,
   };
 
@@ -90,10 +99,17 @@ function main() {
     }
   }
   if (baselineSummary) {
-    console.log(`\n[기존 통계모델(전체 가중평균 예가율)]`);
+    console.log(`\n[기존 통계모델(종목군 가중평균 예가율)]`);
     console.log(`  평균 절대 오차율(MAE): ${pct(baselineSummary.mae, 3)}`);
     for (const [band, rate] of Object.entries(baselineSummary.hitRates)) {
       console.log(`  ${band} 이내 적중: ${pct(rate)} (${Math.round(rate * baselineSummary.n)}/${baselineSummary.n}건)`);
+    }
+  }
+  if (improvedSummary) {
+    console.log(`\n[개선 통계모델(발주처 예가율 축소추정)]`);
+    console.log(`  평균 절대 오차율(MAE): ${pct(improvedSummary.mae, 3)}`);
+    for (const [band, rate] of Object.entries(improvedSummary.hitRates)) {
+      console.log(`  ${band} 이내 적중: ${pct(rate)} (${Math.round(rate * improvedSummary.n)}/${improvedSummary.n}건)`);
     }
   }
   console.log(`\n상세 결과: webapp/data/ai-prediction/score_report.json`);

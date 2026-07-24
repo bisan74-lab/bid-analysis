@@ -550,4 +550,38 @@ function predictCompanyBid(companyName, 기초금액, 대업종) {
   };
 }
 
-module.exports = { loadHistory, loadHistoryFromText, parseHistory, recommendBid, computeOverviewStats, getTopCompanies, predictCompanyBid, computeCategoryDeviation, computeTuchalAmount, computeJeonggaDistribution, RECENCY_WEIGHTS };
+// 개선 통계모델: 예정가격(예가율) 예측에 발주처별 편차를 축소추정(James–Stein식 shrinkage)으로 반영한다.
+// 기존 baseline(recommendBid의 추정예정가격)은 종목군 전체 가중평균 예가율만 곱하는데, 실제로는 발주처마다
+// 기초금액 산정·버림 관행 차이로 예가율에 미세한 계통 편차가 있을 수 있다. 발주처 표본이 많을수록 그 발주처
+// 평균을, 적을수록 종목군 평균을 신뢰하도록 n/(n+k)로 가중결합한다(k=20). AI가 수동으로 하던 "발주처 과거
+// 평균예가율 vs 종목군 평균 → 축소추정 결합" 추론을 코드로 재현·검증 가능하게 만든 것.
+// 채점 공정성을 위해 대상 posting_id 자신은 통계에서 제외(leave-one-out)한다.
+function predictJeonggaPrice(feature, { k = 20 } = {}) {
+  const rows = loadHistory();
+  const group = pickGroup(rows, feature.대업종);
+  const groupItems = group
+    .filter(r => r.예가율 != null && r.posting_id !== feature.posting_id)
+    .map(r => ({ value: r.예가율, weight: r.weight }));
+  const groupMean = weightedMean(groupItems) ?? 1;
+
+  let ratio = groupMean;
+  let 근거 = `종목군 평균 예가율 ${(groupMean * 100).toFixed(3)}% 적용(발주처 표본 없음)`;
+  if (feature.발주처) {
+    const orgRows = group.filter(r =>
+      r.발주처 === feature.발주처 && r.예가율 != null && r.posting_id !== feature.posting_id);
+    if (orgRows.length > 0) {
+      const orgMean = weightedMean(orgRows.map(r => ({ value: r.예가율, weight: r.weight })));
+      const n = orgRows.length;
+      const shrink = n / (n + k);
+      ratio = groupMean + (orgMean - groupMean) * shrink;
+      근거 = `발주처 "${feature.발주처}" ${n}건 예가율 ${(orgMean * 100).toFixed(2)}% vs 종목군 ${(groupMean * 100).toFixed(2)}% → 축소추정(k=${k}, 가중 ${(shrink * 100).toFixed(0)}%) 결합 ${(ratio * 100).toFixed(3)}%`;
+    }
+  }
+  return {
+    예측예가율: ratio,
+    예측예정가격: Math.round(feature.기초금액 * ratio),
+    근거,
+  };
+}
+
+module.exports = { loadHistory, loadHistoryFromText, parseHistory, recommendBid, computeOverviewStats, getTopCompanies, predictCompanyBid, predictJeonggaPrice, computeCategoryDeviation, computeTuchalAmount, computeJeonggaDistribution, RECENCY_WEIGHTS };

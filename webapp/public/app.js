@@ -517,12 +517,17 @@ function renderAiPrediction(report) {
   }
 
   const el = document.getElementById('ai-prediction-summary');
+  const hasImproved = report.improved && report.improved.mae != null;
+  const newBadge = '<span class="badge-new">NEW</span>';
   const tiles = [
     { label: '채점 표본', value: report.scoredCount.toLocaleString('ko-KR') + '건', sub: `전체 샘플 ${report.sampleTotal}건 중` },
     { label: 'AI 추론 오차율(MAE)', value: (report.ai.mae * 100).toFixed(3) + '%', sub: '평균 절대 오차율' },
     { label: '기존모델 오차율(MAE)', value: (report.baseline.mae * 100).toFixed(3) + '%', sub: '종목군 평균 예가율만 적용' },
-    { label: 'AI ±1% 이내 적중률', value: (report.ai.hitRates['±1.0%'] * 100).toFixed(1) + '%', sub: `기존모델 ${(report.baseline.hitRates['±1.0%'] * 100).toFixed(1)}%` },
   ];
+  if (hasImproved) {
+    tiles.push({ label: `개선모델 오차율(MAE) ${newBadge}`, value: (report.improved.mae * 100).toFixed(3) + '%', sub: '발주처 예가율 축소추정 반영' });
+  }
+  tiles.push({ label: 'AI ±1% 이내 적중률', value: (report.ai.hitRates['±1.0%'] * 100).toFixed(1) + '%', sub: `기존모델 ${(report.baseline.hitRates['±1.0%'] * 100).toFixed(1)}%` });
   el.innerHTML = '';
   for (const t of tiles) {
     const div = document.createElement('div');
@@ -536,10 +541,14 @@ function renderAiPrediction(report) {
     band: b,
     AI: report.ai.hitRates[b] * 100,
     기존모델: report.baseline.hitRates[b] * 100,
+    개선모델: hasImproved ? report.improved.hitRates[b] * 100 : null,
   }));
   const container = document.getElementById('chart-ai-hitrate');
   container.innerHTML = '';
-  const rowH = 46;
+  const seriesDefs = hasImproved
+    ? [['AI', 'AI', seriesColor(0)], ['기존모델', '기존모델', seriesColor(3)], ['개선모델', '개선모델', seriesColor(2)]]
+    : [['AI', 'AI', seriesColor(0)], ['기존모델', '기존모델', seriesColor(3)]];
+  const rowH = seriesDefs.length * 18 + 12;
   const w = CHART_W, h = chartData.length * rowH + 10;
   const labelW = 60, innerW = w - labelW - 50;
   const root = svg('svg', { viewBox: `0 0 ${w} ${h}`, style: 'display:block;width:100%;height:auto' });
@@ -548,7 +557,7 @@ function renderAiPrediction(report) {
     const label = svg('text', { x: labelW - 8, y: y0 + 26, 'text-anchor': 'end', 'font-size': 11, fill: cssVar('--text-secondary') });
     label.textContent = d.band;
     root.appendChild(label);
-    [['AI', d.AI, seriesColor(0)], ['기존모델', d.기존모델, seriesColor(3)]].forEach(([name, val, color], j) => {
+    seriesDefs.map(([name, key, color]) => [name, d[key], color]).forEach(([name, val, color], j) => {
       const y = y0 + j * 18;
       const bw = (val / 100) * innerW;
       const rect = svg('rect', { x: labelW, y, width: Math.max(2, bw), height: 14, rx: 3, fill: color });
@@ -571,6 +580,7 @@ function renderAiPrediction(report) {
       <td>${fmtWonShort(r.AI예측예정가격)}</td>
       <td style="color:${Math.abs(r.AI오차율) < Math.abs(r.기존모델오차율) ? 'var(--good)' : 'var(--text-muted)'}">${(r.AI오차율 * 100).toFixed(2)}%</td>
       <td>${(r.기존모델오차율 * 100).toFixed(2)}%</td>
+      ${hasImproved ? `<td>${r.개선모델오차율 != null ? (r.개선모델오차율 * 100).toFixed(2) + '%' : '-'}</td>` : ''}
       <td style="max-width:320px;white-space:normal">${r.근거 || '-'}</td>
     </tr>`).join('');
 
