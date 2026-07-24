@@ -96,7 +96,7 @@ function renderJeonggaDistribution(rec) {
   return `
     <div class="strategy-block">
       <div class="strategy-group">
-        <p class="strategy-title" style="color:${color}">예정가격 확률 분포 <span class="strategy-sub">— 복수예비가격 15개 중 다빈도 4개 평균으로 정해지는 예정가격의 확률 구간(과거 예가율 분포 기준)</span></p>
+        <p class="strategy-title" style="color:${color}">예정가격 확률 분포 <span class="badge-new">NEW</span> <span class="strategy-sub">— 복수예비가격 15개 중 다빈도 4개 평균으로 정해지는 예정가격의 확률 구간(과거 예가율 분포 기준)</span></p>
         <div class="tier-grid">${tiles}</div>
       </div>
     </div>
@@ -114,7 +114,7 @@ function renderAValueCalculator(rec) {
   return `
     <div class="strategy-block">
       <div class="strategy-group avalue-calc">
-        <p class="strategy-title">투찰금액 계산기 (A값 적용) <span class="strategy-sub">— (예정가격 − A값) × 낙찰하한율 + A값. A값은 노무비·보험료·산업안전보건관리비 등 낙찰률 할인 대상에서 제외되는 고정 실비</span></p>
+        <p class="strategy-title">투찰금액 계산기 (A값 적용) <span class="badge-new">NEW</span> <span class="strategy-sub">— (예정가격 − A값) × 낙찰하한율 + A값. A값은 노무비·보험료·산업안전보건관리비 등 낙찰률 할인 대상에서 제외되는 고정 실비</span></p>
         <div class="avalue-inputs">
           <label>예정가격(원)<input type="number" class="av-jeongga" value="${예정가격}" oninput="krsCalcTuchal(this)"></label>
           <label>낙찰하한율(%)<input type="number" step="0.001" class="av-rate" value="${하한율}" oninput="krsCalcTuchal(this)"></label>
@@ -166,7 +166,7 @@ function renderAnalysisBody(data) {
     : '';
   return `
     <div style="font-size:12.5px;color:var(--text-secondary)">
-      기준 <b style="color:var(--text-primary)">기초금액 ${fmtWon(rec.기초금액)}</b>${baseNote}
+      기준 <b style="color:var(--text-primary)">기초금액 ${fmtWon(rec.기초금액)}</b>${item.기초금액추정 ? ' <span class="badge-new">NEW</span>' : ''}${baseNote}
     </div>
     <div style="font-size:12.5px;color:var(--text-secondary);margin-top:2px">
       추정 예정가격 <b style="color:var(--text-primary)">${fmtWon(rec.추정예정가격)}</b>
