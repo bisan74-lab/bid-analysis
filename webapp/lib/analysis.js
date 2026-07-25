@@ -587,6 +587,58 @@ function predictJeonggaFinal(feature, { excludePostingId = null } = {}) {
   };
 }
 
+// 과거 이력 전체를 leave-one-out(각 건 예측 시 그 건 자신은 제외)으로 검증한 AI최종(풀 가중중앙값)·
+// 기존(풀 가중평균) 예정가격 예측 정확도. 150건 표본 검증(score_report)과 별개의 "전수 검증".
+// 순수 계산(fs 비의존) — Node 스크립트/서버에서 1회 생성해 정적 JSON으로 캐시하는 용도.
+function validateFullHistory() {
+  const rows = loadHistory().filter(r => r.예가율 != null && r.기초금액 && r.예정가격);
+  const pools = {
+    포장: rows.filter(r => r.is포장군),
+    수도: rows.filter(r => r.is상하수도군),
+    전체: rows,
+  };
+  const keyOf = (r) => {
+    const p = r.대업종.includes('지반조성.포장'), s = r.대업종.includes('상.하수도');
+    return (p && !s) ? '포장' : (s && !p) ? '수도' : '전체';
+  };
+  const prep = (list) => {
+    const it = list.map(r => ({ v: r.예가율, w: r.weight, id: r.posting_id })).sort((a, b) => a.v - b.v);
+    const sw = it.reduce((s, i) => s + i.w, 0);
+    return { it, sw };
+  };
+  const P = { 포장: prep(pools.포장), 수도: prep(pools.수도), 전체: prep(pools.전체) };
+  // LOO 가중중앙값: 총가중 tw=sw-자기가중, 자기 자신 건너뛰며 누적해 tw/2 도달 지점.
+  const looMedian = (pk, self) => {
+    const { it, sw } = P[pk]; const half = (sw - self.weight) / 2; let c = 0;
+    for (const i of it) { if (i.id === self.posting_id) continue; c += i.w; if (c >= half) return i.v; }
+    return it.length ? it[it.length - 1].v : null;
+  };
+  const looMean = (pk, self) => {
+    const { it, sw } = P[pk]; const tw = sw - self.weight; let s = 0;
+    for (const i of it) { if (i.id === self.posting_id) continue; s += i.w * i.v; }
+    return tw > 0 ? s / tw : null;
+  };
+  const bands = [0.005, 0.01, 0.02, 0.03];
+  const bandKey = (b) => `±${(b * 100).toFixed(1)}%`;
+  const summarize = (predFn) => {
+    let sae = 0, n = 0;
+    const hit = Object.fromEntries(bands.map(b => [bandKey(b), 0]));
+    for (const r of rows) {
+      const ratio = predFn(r);
+      if (ratio == null) continue;
+      const err = Math.abs(ratio / r.예가율 - 1);
+      sae += err; n++;
+      for (const b of bands) if (err <= b) hit[bandKey(b)]++;
+    }
+    return { n, mae: sae / n, hitRates: Object.fromEntries(bands.map(b => [bandKey(b), hit[bandKey(b)] / n])) };
+  };
+  return {
+    n: rows.length,
+    aiFinal: summarize(r => looMedian(keyOf(r), r)),
+    baseline: summarize(r => looMean(keyOf(r), r)),
+  };
+}
+
 // 개선 통계모델: 예정가격(예가율) 예측에 발주처별 편차를 축소추정(James–Stein식 shrinkage)으로 반영한다.
 // 기존 baseline(recommendBid의 추정예정가격)은 종목군 전체 가중평균 예가율만 곱하는데, 실제로는 발주처마다
 // 기초금액 산정·버림 관행 차이로 예가율에 미세한 계통 편차가 있을 수 있다. 발주처 표본이 많을수록 그 발주처
@@ -621,4 +673,4 @@ function predictJeonggaPrice(feature, { k = 20 } = {}) {
   };
 }
 
-module.exports = { loadHistory, loadHistoryFromText, parseHistory, recommendBid, computeOverviewStats, getTopCompanies, predictCompanyBid, predictJeonggaPrice, predictJeonggaFinal, computeCategoryDeviation, computeTuchalAmount, computeJeonggaDistribution, RECENCY_WEIGHTS };
+module.exports = { loadHistory, loadHistoryFromText, parseHistory, recommendBid, computeOverviewStats, getTopCompanies, predictCompanyBid, predictJeonggaPrice, predictJeonggaFinal, validateFullHistory, computeCategoryDeviation, computeTuchalAmount, computeJeonggaDistribution, RECENCY_WEIGHTS };

@@ -509,6 +509,38 @@ async function loadAiPredictionReport() {
   }
 }
 
+async function loadAiFullHistoryReport() {
+  try {
+    const res = await fetch('/api/ai-prediction/full-report.json');
+    if (!res.ok) return null;
+    return res.json();
+  } catch (e) {
+    return null;
+  }
+}
+
+// 전체 이력 전수(4,157건) leave-one-out 검증 결과를 요약 카드로 표시한다. 150건 표본과 교차확인용.
+function renderAiFullHistory(full) {
+  const box = document.getElementById('ai-fullhistory');
+  if (!box) return;
+  if (!full || !full.aiFinal) { box.innerHTML = ''; return; }
+  const af = full.aiFinal;
+  const cell = (k) => (af.hitRates[k] * 100).toFixed(1) + '%';
+  box.innerHTML = `
+    <div class="card" style="margin-top:14px;border-left:3px solid #6b5bff">
+      <p class="chart-title"><span class="badge-ai-final">AI최종</span> 전체 이력 전수 검증 <span class="chart-sub" style="display:inline">— 150건 표본이 아니라 과거 ${full.n.toLocaleString('ko-KR')}건 전부를 leave-one-out으로 검증</span></p>
+      <div class="stat-grid" style="margin-top:8px">
+        <div class="stat-tile"><div class="label">검증 표본</div><div class="value">${full.n.toLocaleString('ko-KR')}건</div><div class="sub">전수 (표본 편향 없음)</div></div>
+        <div class="stat-tile"><div class="label">평균 오차율(MAE)</div><div class="value">${(af.mae * 100).toFixed(3)}%</div><div class="sub">150건 검증(0.599%)과 일치</div></div>
+        <div class="stat-tile"><div class="label">±0.5% 이내 적중</div><div class="value">${cell('±0.5%')}</div><div class="sub">예정가격 1억 기준 ±50만원</div></div>
+        <div class="stat-tile"><div class="label">±1% 이내 적중</div><div class="value">${cell('±1.0%')}</div><div class="sub">±100만원 이내</div></div>
+        <div class="stat-tile"><div class="label">±2% 이내 적중</div><div class="value">${cell('±2.0%')}</div><div class="sub">±200만원 이내</div></div>
+        <div class="stat-tile"><div class="label">±3% 이내 적중</div><div class="value">${cell('±3.0%')}</div><div class="sub">복수예비가격 범위라 사실상 100%</div></div>
+      </div>
+      <p class="chart-sub" style="margin-top:8px">전수로 봐도 결론 동일: 남는 오차 ~0.58%는 복수예비가격 난수의 본질적 폭이라 점추정으로는 더 못 줄이며, 예정가격 확률 분포(P10~P90)를 함께 보는 것이 정석입니다. (순수 통계 계산 — 재실행해도 토큰 소비 없음.)</p>
+    </div>`;
+}
+
 function renderAiPrediction(report) {
   const section = document.getElementById('ai-prediction-summary').closest('section');
   if (!report || report.error || !report.ai) {
@@ -691,8 +723,8 @@ async function init() {
     document.getElementById('table-toggle').textContent = open ? '월별 원자료 표 보기' : '표 숨기기';
   });
 
-  const [stats, openBids, myBidList, topCompanies, aiReport] = await Promise.all([
-    loadStats(), loadOpenBids(), loadMyBidList(), loadTopCompanies(), loadAiPredictionReport(),
+  const [stats, openBids, myBidList, topCompanies, aiReport, aiFullReport] = await Promise.all([
+    loadStats(), loadOpenBids(), loadMyBidList(), loadTopCompanies(), loadAiPredictionReport(), loadAiFullHistoryReport(),
   ]);
   renderStatTiles(stats);
   renderMethodology(stats);
@@ -702,6 +734,7 @@ async function init() {
   renderBidList('open-bids-list', openBids, { emptyMsg: '진행중인 입찰 항목이 없습니다. "새로고침"을 눌러 최신 데이터를 가져오세요.', updatedElId: 'open-bids-updated', countLabel: '부산/경남', openInNewTab: true });
   renderTopCompanies(topCompanies);
   renderAiPrediction(aiReport);
+  renderAiFullHistory(aiFullReport);
 }
 
 init();

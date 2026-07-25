@@ -143,6 +143,17 @@ app.get('/api/ai-prediction/report.json', (req, res) => {
   }
 });
 
+// 과거 이력 전수(4,157건) leave-one-out 검증. 파일이 없으면 즉석 계산(1초 이내)해서 응답.
+app.get('/api/ai-prediction/full-report.json', (req, res) => {
+  try {
+    const p = path.join(__dirname, 'data', 'ai-prediction', 'full_history_report.json');
+    if (require('fs').existsSync(p)) return res.json(JSON.parse(require('fs').readFileSync(p, 'utf8')));
+    res.json(analysis.validateFullHistory());
+  } catch (e) {
+    res.status(500).json({ error: String(e.message || e) });
+  }
+});
+
 app.get('/oauth/kakao/start', (req, res) => {
   try {
     res.redirect(kakao.getAuthorizeUrl());

@@ -60,6 +60,11 @@ function main() {
     writeJson('api/ai-prediction/report.json', JSON.parse(fs.readFileSync(aiReportPath, 'utf8')));
   }
 
+  // 전수(4,157건) 검증 결과: 정적 파일이 있으면 복사, 없으면 빌드 시점에 계산해서 생성(순수계산, 1초 이내).
+  const fullReportPath = path.join(__dirname, 'data', 'ai-prediction', 'full_history_report.json');
+  writeJson('api/ai-prediction/full-report.json',
+    fs.existsSync(fullReportPath) ? JSON.parse(fs.readFileSync(fullReportPath, 'utf8')) : analysis.validateFullHistory());
+
   // 4) 항목별 상세분석 (진행중입찰 + 맞춤정보 합쳐서, posting_id 중복 제거)
   const seen = new Set();
   const allItems = [...openBids.items, ...myBidList.items].filter(it => {
