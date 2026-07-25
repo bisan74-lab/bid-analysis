@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>낙찰 가능성 분석 — 케이알에스건설 입찰 분석 대시보드</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div>
+      <h1>낙찰 가능성 분석</h1>
+      <p>"이 시스템으로 실제로 낙찰을 받을 수 있는가"를 과거 <span id="hdr-n">…</span>건 전수 백테스트로 검증한 결과</p>
+    </div>
+  </header>
+
+  <nav class="tab-nav">
+    <a href="/" class="tab-link">분석 대시보드</a>
+    <a href="/win-probability.html" class="tab-link active">낙찰 가능성 분석</a>
+  </nav>
+
+  <section>
+    <h2>결론</h2>
+    <div id="verdict" class="card"><div class="empty-note">계산 중…</div></div>
+  </section>
+
+  <section>
+    <h2>핵심 지표</h2>
+    <div id="wp-tiles" class="stat-grid"></div>
+  </section>
+
+  <section>
+    <h2>1. 승부 구조 — "0.01%p 게임"</h2>
+    <div class="card">
+      <p class="section-sub" id="margin-desc">…</p>
+      <div id="margin-tiles" class="stat-grid" style="margin-top:10px"></div>
+      <p class="chart-sub" style="margin-top:10px">
+        낙찰자가 실제 추첨 결과보다 얼마나 위에 붙어서 이겼는지(마진)의 분포입니다.
+        추첨(예정가격)은 ±1% 범위에 퍼지는데 승부는 그보다 훨씬 미세한 단위에서 갈립니다 —
+        <b>예측 정확도로 이기는 게임이 아니라 확률 게임</b>이라는 뜻입니다.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>2. 백테스트 — 고정 사정률로 3년간 투찰했다면</h2>
+    <div class="charts-grid">
+      <div class="card">
+        <p class="chart-title">사정률별 낙찰률 곡선</p>
+        <p class="chart-sub">가로축 = 투찰 사정률(%), 세로축 = 낙찰률(%). 점선 = 이론 기본확률(1/참여업체수), 보라선 = 우리 모델 중심</p>
+        <div id="chart-winrate"></div>
+      </div>
+    </div>
+    <div id="strategy-table" style="margin-top:12px"></div>
+  </section>
+
+  <section>
+    <h2>3. 아웃오브샘플 검증 (과적합 점검)</h2>
+    <div class="card">
+      <p class="section-sub">과거 2년 데이터로만 최적 사정률을 고르고, 그것을 <b>한 번도 안 본 최근 1년</b>에 적용했을 때의 성적입니다. 사후 최적점의 우위가 진짜인지 표본 잡음인지 가려냅니다.</p>
+      <div id="oos-tiles" class="stat-grid" style="margin-top:10px"></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>4. 참여 규모별 낙찰 전망</h2>
+    <div class="card">
+      <p class="section-sub">단건 낙찰확률(최근 1년 실측 기준)을 그대로 적용했을 때, 연간 참여 건수에 따른 기대 낙찰 건수와 "최소 1건 이상 낙찰할 확률"입니다.</p>
+      <div id="volume-table" style="margin-top:10px"></div>
+      <p class="chart-sub" style="margin-top:10px" id="benchmark-note">…</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>5. 한계와 리스크 (사실 그대로)</h2>
+    <div class="card">
+      <ul style="margin:0;padding-left:20px;font-size:13px;line-height:1.9;color:var(--text-secondary)">
+        <li><b style="color:var(--text-primary)">적격심사 리스크 (최대 변수)</b> — 이 백테스트는 "가격 1순위 = 낙찰"을 가정합니다. 실제로는 적격심사(경영상태+시공실적)를 통과해야 하며,
+          <b>당사 신용등급 C(하락 추세)는 경영상태 평점 감점 요인</b>입니다. 소액수의·전자견적(간이 심사)은 영향이 작지만, 일반 적격심사 대상은 투찰 전 기준표 확인이 필수입니다.
+          이 리스크는 데이터로 정량화할 수 없어 위 확률에 <b>반영되어 있지 않습니다</b>.</li>
+        <li>참여에는 보증금·서류·시공 여력 등 현실적 제약이 있어, "연 600건 참여"는 이론적 상한선입니다.</li>
+        <li>우리의 참여가 다른 업체의 투찰 행동을 바꾸지 않는다고 가정했습니다(전자입찰 특성상 타당).</li>
+        <li>유찰(단독 응찰로 낙찰되는 기회)과 동일가 추첨은 제외했으므로, 실제 확률은 위 수치를 <b>소폭 상회</b>할 수 있습니다(보수적 추정).</li>
+        <li><b style="color:var(--text-primary)">낙찰 ≠ 이익</b> — 낙찰률 87~90% 수준 투찰의 채산성은 공사별로 별도 판단이 필요합니다.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section>
+    <h2>6. 검증 방법 (재현 가능)</h2>
+    <div class="card">
+      <p class="section-sub">
+        원본 CSV의 두 컬럼을 해석해 낙찰 조건을 그대로 재현했습니다 —
+        <b>예정가격사정률</b>(추첨으로 정해진 실제 사정률, (예정가격÷기초금액−1)×100과 4,157건 100% 일치 확인)과
+        <b>1순위사정률</b>(낙찰자가 투찰가로 표현한 추측치, "추측 ≥ 실제" 조건이 99.9%에서 성립해 해석 타당성 확인).
+      </p>
+      <p class="section-sub" style="margin-top:8px">
+        낙찰 판정식: <b>실제사정률 ≤ 내 추측 &lt; 낙찰자 추측</b>
+        (내 투찰가가 낙찰하한가 이상이면서 실제 낙찰자보다 낮아 최저가 1순위가 되는 경우).
+        내 추측이 실제사정률보다 작으면 하한가 미달로 <b>무효 투찰</b>입니다.
+      </p>
+      <p class="chart-sub" style="margin-top:8px">전부 순수 통계 계산(약 0.4초)이며 AI 토큰을 소비하지 않습니다. 재생성: <code>node webapp/scripts/win-probability.js</code> · 해설 문서: <code>BIDDING_WIN_PROBABILITY.md</code></p>
+    </div>
+  </section>
+
+  <footer class="page-footer">
+    낙찰 이력 데이터 출처: 아이건설넷(igunsul.net, 과거 수집분) · 내부 분석용 · 실제 투찰 결정은 최신 공고 조건을 반드시 재확인하세요.
+  </footer>
+</div>
+
+<div id="tooltip" class="tooltip"></div>
+<script src="win-probability.js"></script>
+</body>
+</html>

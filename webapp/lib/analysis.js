@@ -85,6 +85,11 @@ function parseHistory(csvText) {
       기초금액,
       예정가격,
       일순위금액,
+      // 사정률 2종(낙찰확률 백테스트용, 2026-07-25부터 사용):
+      //  예정가격사정률 = 추첨으로 정해진 실제 사정률 = (예정가격/기초금액-1)×100 (4,157건 100% 실측 일치)
+      //  일순위사정률   = 낙찰자가 투찰가로 표현한 사정률 "추측치" (추측>=실제가 99.9%에서 성립)
+      예정가격사정률: toNumber(cols[idx['예정가격사정률']]),
+      일순위사정률: toNumber(cols[idx['1순위사정률']]),
       일순위업체: cols[idx['1순위업체']],
       참여업체수,
       개찰일,
@@ -639,6 +644,75 @@ function validateFullHistory() {
   };
 }
 
+// 낙찰 가능성 백테스트 (2026-07-25). "우리가 과거 모든 공고에 참여했다면 실제로 낙찰됐을까"를
+// 사정률 2종으로 전수 재현한다. 상세 해설은 BIDDING_WIN_PROBABILITY.md 참고.
+//
+// 낙찰 조건: 실제사정률 <= 내 추측 < 낙찰자 추측
+//   (내 투찰가가 낙찰하한가 이상이면서, 실제 낙찰자보다 낮아 최저가 1순위가 되는 경우)
+// 내 추측이 실제사정률보다 작으면 하한가 미달 = 무효 투찰.
+function computeWinProbability({ sweepStep = 0.005, sweepRange = 1.5 } = {}) {
+  const rows = loadHistory().filter(r =>
+    r.예정가격사정률 != null && r.일순위사정률 != null && r.기초금액 && r.예정가격 && r.일순위금액);
+  const recent = rows.filter(r => r.연차구분 === '최근1년');
+  const past = rows.filter(r => r.연차구분 !== '최근1년');
+
+  // 특정 고정 사정률 s로 전 기간 투찰했을 때의 낙찰/무효 건수
+  const at = (list, s) => {
+    let wins = 0, invalid = 0;
+    for (const r of list) {
+      if (s < r.예정가격사정률) invalid++;        // 하한가 미달 → 무효
+      else if (s < r.일순위사정률) wins++;        // 하한가 이상 + 낙찰자보다 낮음 → 1순위
+    }
+    return { wins, invalid, n: list.length, winRate: wins / list.length, invalidRate: invalid / list.length };
+  };
+  const sweep = (list) => {
+    let best = null;
+    const curve = [];
+    for (let s = -sweepRange; s <= sweepRange + 1e-9; s += sweepStep) {
+      const key = Number(s.toFixed(3));
+      const res = at(list, key);
+      curve.push({ s: key, winRate: res.winRate, invalidRate: res.invalidRate });
+      if (!best || res.wins > best.wins) best = { s: key, ...res };
+    }
+    return { best, curve };
+  };
+
+  const allSweep = sweep(rows);
+  const recentSweep = sweep(recent);
+  const pastSweep = sweep(past);
+
+  // 낙찰자 마진(추측 - 실제): 승부가 얼마나 미세한 단위에서 갈리는지
+  const margins = rows.map(r => r.일순위사정률 - r.예정가격사정률).sort((a, b) => a - b);
+  const q = (p) => margins[Math.floor(margins.length * p)];
+  const share = (lo, hi) => margins.filter(m => m >= lo && m < hi).length / margins.length;
+
+  // 참여업체수 → 이론 기본확률(1/N)
+  const parts = rows.filter(r => r.참여업체수).map(r => r.참여업체수).sort((a, b) => a - b);
+  const meanParts = parts.reduce((s, x) => s + x, 0) / parts.length;
+  const medianParts = parts[Math.floor(parts.length / 2)];
+
+  // 우리 모델 중심(가중중앙값 예가율)에 해당하는 사정률로 투찰했을 때
+  const modelRatio = weightedPercentile(
+    rows.filter(r => r.예가율 != null).map(r => ({ value: r.예가율, weight: r.weight })), 50);
+  const modelS = Number(((modelRatio - 1) * 100).toFixed(3));
+
+  return {
+    n: rows.length,
+    recentN: recent.length,
+    margins: {
+      p10: q(0.1), p25: q(0.25), median: q(0.5), p75: q(0.75), p90: q(0.9),
+      under001: share(0, 0.01), under005: share(0, 0.05), under01: share(0, 0.1),
+    },
+    participants: { mean: meanParts, median: medianParts, baseProbMean: 1 / meanParts, baseProbMedian: 1 / medianParts },
+    model: { 사정률: modelS, 예가율: modelRatio, all: at(rows, modelS), recent: at(recent, modelS) },
+    bestFit: { all: allSweep.best, recent: recentSweep.best },
+    // 아웃오브샘플: 과거 2년에서 고른 최적점을 최근1년에 적용 (과적합 여부 판정)
+    outOfSample: { trainS: pastSweep.best.s, trainWinRate: pastSweep.best.winRate, test: at(recent, pastSweep.best.s) },
+    curve: allSweep.curve,
+    recentCurve: recentSweep.curve,
+  };
+}
+
 // 개선 통계모델: 예정가격(예가율) 예측에 발주처별 편차를 축소추정(James–Stein식 shrinkage)으로 반영한다.
 // 기존 baseline(recommendBid의 추정예정가격)은 종목군 전체 가중평균 예가율만 곱하는데, 실제로는 발주처마다
 // 기초금액 산정·버림 관행 차이로 예가율에 미세한 계통 편차가 있을 수 있다. 발주처 표본이 많을수록 그 발주처
@@ -673,4 +747,4 @@ function predictJeonggaPrice(feature, { k = 20 } = {}) {
   };
 }
 
-module.exports = { loadHistory, loadHistoryFromText, parseHistory, recommendBid, computeOverviewStats, getTopCompanies, predictCompanyBid, predictJeonggaPrice, predictJeonggaFinal, validateFullHistory, computeCategoryDeviation, computeTuchalAmount, computeJeonggaDistribution, RECENCY_WEIGHTS };
+module.exports = { loadHistory, loadHistoryFromText, parseHistory, recommendBid, computeOverviewStats, getTopCompanies, predictCompanyBid, predictJeonggaPrice, predictJeonggaFinal, validateFullHistory, computeWinProbability, computeCategoryDeviation, computeTuchalAmount, computeJeonggaDistribution, RECENCY_WEIGHTS };

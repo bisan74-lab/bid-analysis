@@ -65,6 +65,11 @@ function main() {
   writeJson('api/ai-prediction/full-report.json',
     fs.existsSync(fullReportPath) ? JSON.parse(fs.readFileSync(fullReportPath, 'utf8')) : analysis.validateFullHistory());
 
+  // 낙찰 가능성 백테스트: 위와 동일 방식.
+  const winProbPath = path.join(__dirname, 'data', 'ai-prediction', 'win_probability_report.json');
+  writeJson('api/win-probability.json',
+    fs.existsSync(winProbPath) ? JSON.parse(fs.readFileSync(winProbPath, 'utf8')) : analysis.computeWinProbability());
+
   // 4) 항목별 상세분석 (진행중입찰 + 맞춤정보 합쳐서, posting_id 중복 제거)
   const seen = new Set();
   const allItems = [...openBids.items, ...myBidList.items].filter(it => {
