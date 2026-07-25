@@ -556,7 +556,8 @@ function renderAiPrediction(report) {
   if (hasAiFinal) seriesDefs.push(['AI최종', 'AI최종', seriesColor(4)]);
   const rowH = seriesDefs.length * 18 + 12;
   const w = CHART_W, h = chartData.length * rowH + 10;
-  const labelW = 60, innerW = w - labelW - 50;
+  // 오른쪽 여백 140px: 100% 막대 옆에 붙는 "기존모델 100.0%" 같은 값 라벨이 잘리지 않도록 막대를 줄여 확보.
+  const labelW = 60, innerW = w - labelW - 140;
   const root = svg('svg', { viewBox: `0 0 ${w} ${h}`, style: 'display:block;width:100%;height:auto' });
   chartData.forEach((d, i) => {
     const y0 = i * rowH + 6;
