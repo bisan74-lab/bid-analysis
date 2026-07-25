@@ -188,6 +188,13 @@ section > .section-sub { font-size: 12.5px; color: var(--text-secondary); margin
 }
 .highlight-new { color: #ff6b35; }
 
+.badge-ai-final {
+  display: inline-block; vertical-align: middle; margin: 0 4px;
+  padding: 1px 6px; border-radius: 10px; font-size: 10px; font-weight: 800; letter-spacing: 0.3px;
+  color: #fff; background: linear-gradient(135deg, #6b5bff, #2b9cff);
+  line-height: 1.5;
+}
+
 .empty-note { color: var(--text-muted); font-size: 13px; padding: 20px; text-align: center; }
 
 table.data-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }

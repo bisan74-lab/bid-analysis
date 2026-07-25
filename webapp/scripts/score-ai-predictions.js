@@ -56,6 +56,10 @@ function main() {
     const improved = analysis.predictJeonggaPrice(feature);
     const improvedError = (improved.예측예정가격 - answer.예정가격) / answer.예정가격;
 
+    // AI최종 모델: LOO 실측으로 채택/배제를 결정한 최종 모델(2026-07-25 추가). 자기 자신 제외 채점.
+    const aiFinal = analysis.predictJeonggaFinal(feature, { excludePostingId: postingId });
+    const aiFinalError = aiFinal ? (aiFinal.예측예정가격 - answer.예정가격) / answer.예정가격 : null;
+
     rows.push({
       posting_id: postingId,
       기초금액: answer.기초금액,
@@ -67,6 +71,9 @@ function main() {
       개선모델예측예정가격: improved.예측예정가격,
       개선모델오차율: improvedError,
       개선모델근거: improved.근거,
+      AI최종예측예정가격: aiFinal ? aiFinal.예측예정가격 : null,
+      AI최종오차율: aiFinalError,
+      AI최종근거: aiFinal ? aiFinal.근거 : null,
       근거: pred.근거 || null,
     });
   }
@@ -74,6 +81,7 @@ function main() {
   const aiSummary = summarizeErrors(rows.map(r => r.AI오차율));
   const baselineSummary = summarizeErrors(rows.map(r => r.기존모델오차율));
   const improvedSummary = summarizeErrors(rows.map(r => r.개선모델오차율));
+  const aiFinalSummary = summarizeErrors(rows.filter(r => r.AI최종오차율 != null).map(r => r.AI최종오차율));
 
   const report = {
     scoredAt: new Date().toISOString(),
@@ -84,6 +92,7 @@ function main() {
     ai: aiSummary,
     baseline: baselineSummary,
     improved: improvedSummary,
+    aiFinal: aiFinalSummary,
     rows,
   };
 
@@ -110,6 +119,13 @@ function main() {
     console.log(`  평균 절대 오차율(MAE): ${pct(improvedSummary.mae, 3)}`);
     for (const [band, rate] of Object.entries(improvedSummary.hitRates)) {
       console.log(`  ${band} 이내 적중: ${pct(rate)} (${Math.round(rate * improvedSummary.n)}/${improvedSummary.n}건)`);
+    }
+  }
+  if (aiFinalSummary) {
+    console.log(`\n[AI최종(가중중앙값 — LOO 실측으로 채택/배제 수렴)]`);
+    console.log(`  평균 절대 오차율(MAE): ${pct(aiFinalSummary.mae, 3)}`);
+    for (const [band, rate] of Object.entries(aiFinalSummary.hitRates)) {
+      console.log(`  ${band} 이내 적중: ${pct(rate)} (${Math.round(rate * aiFinalSummary.n)}/${aiFinalSummary.n}건)`);
     }
   }
   console.log(`\n상세 결과: webapp/data/ai-prediction/score_report.json`);

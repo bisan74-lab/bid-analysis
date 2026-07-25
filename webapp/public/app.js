@@ -518,7 +518,9 @@ function renderAiPrediction(report) {
 
   const el = document.getElementById('ai-prediction-summary');
   const hasImproved = report.improved && report.improved.mae != null;
+  const hasAiFinal = report.aiFinal && report.aiFinal.mae != null;
   const newBadge = '<span class="badge-new">NEW</span>';
+  const aiFinalBadge = '<span class="badge-ai-final">AI최종</span>';
   const tiles = [
     { label: '채점 표본', value: report.scoredCount.toLocaleString('ko-KR') + '건', sub: `전체 샘플 ${report.sampleTotal}건 중` },
     { label: 'AI 추론 오차율(MAE)', value: (report.ai.mae * 100).toFixed(3) + '%', sub: '평균 절대 오차율' },
@@ -526,6 +528,9 @@ function renderAiPrediction(report) {
   ];
   if (hasImproved) {
     tiles.push({ label: `개선모델 오차율(MAE) ${newBadge}`, value: (report.improved.mae * 100).toFixed(3) + '%', sub: '발주처 예가율 축소추정 반영' });
+  }
+  if (hasAiFinal) {
+    tiles.push({ label: `${aiFinalBadge} 오차율(MAE)`, value: (report.aiFinal.mae * 100).toFixed(3) + '%', sub: '가중중앙값 — LOO 실측으로 채택/배제 수렴' });
   }
   tiles.push({ label: 'AI ±1% 이내 적중률', value: (report.ai.hitRates['±1.0%'] * 100).toFixed(1) + '%', sub: `기존모델 ${(report.baseline.hitRates['±1.0%'] * 100).toFixed(1)}%` });
   el.innerHTML = '';
@@ -542,12 +547,13 @@ function renderAiPrediction(report) {
     AI: report.ai.hitRates[b] * 100,
     기존모델: report.baseline.hitRates[b] * 100,
     개선모델: hasImproved ? report.improved.hitRates[b] * 100 : null,
+    AI최종: hasAiFinal ? report.aiFinal.hitRates[b] * 100 : null,
   }));
   const container = document.getElementById('chart-ai-hitrate');
   container.innerHTML = '';
-  const seriesDefs = hasImproved
-    ? [['AI', 'AI', seriesColor(0)], ['기존모델', '기존모델', seriesColor(3)], ['개선모델', '개선모델', seriesColor(2)]]
-    : [['AI', 'AI', seriesColor(0)], ['기존모델', '기존모델', seriesColor(3)]];
+  const seriesDefs = [['AI', 'AI', seriesColor(0)], ['기존모델', '기존모델', seriesColor(3)]];
+  if (hasImproved) seriesDefs.push(['개선모델', '개선모델', seriesColor(2)]);
+  if (hasAiFinal) seriesDefs.push(['AI최종', 'AI최종', seriesColor(4)]);
   const rowH = seriesDefs.length * 18 + 12;
   const w = CHART_W, h = chartData.length * rowH + 10;
   const labelW = 60, innerW = w - labelW - 50;
@@ -581,6 +587,7 @@ function renderAiPrediction(report) {
       <td style="color:${Math.abs(r.AI오차율) < Math.abs(r.기존모델오차율) ? 'var(--good)' : 'var(--text-muted)'}">${(r.AI오차율 * 100).toFixed(2)}%</td>
       <td>${(r.기존모델오차율 * 100).toFixed(2)}%</td>
       ${hasImproved ? `<td>${r.개선모델오차율 != null ? (r.개선모델오차율 * 100).toFixed(2) + '%' : '-'}</td>` : ''}
+      ${hasAiFinal ? `<td>${r.AI최종오차율 != null ? (r.AI최종오차율 * 100).toFixed(2) + '%' : '-'}</td>` : ''}
       <td style="max-width:320px;white-space:normal">${r.근거 || '-'}</td>
     </tr>`).join('');
 

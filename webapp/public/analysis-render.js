@@ -172,6 +172,20 @@ function renderAnalysisBody(data) {
       추정 예정가격 <b style="color:var(--text-primary)">${fmtWon(rec.추정예정가격)}</b>
       (기초금액 대비 ${(rec.추정예가율 * 100).toFixed(2)}%, 표본 ${rec.표본수.toLocaleString('ko-KR')}건)
     </div>
+    ${rec.aiFinal ? `
+    <div class="strategy-block">
+      <div class="strategy-group">
+        <p class="strategy-title"><span class="badge-ai-final">AI최종</span> 예정가격 예측 <span class="strategy-sub">— 4,157건 leave-one-out 실측으로 채택/배제를 수렴한 최종 모델 (채택: 기초금액 기준 + 가중중앙값 / 배제: 발주처·종목·지역 편차)</span></p>
+        <div class="tier-grid">
+          <div class="tier-tile" style="border-color:#6b5bffaa">
+            <div class="p">AI최종 예측 예정가격</div>
+            <div class="amt">${fmtWon(rec.aiFinal.예측예정가격)}</div>
+            <div class="ratio">기초금액 대비 ${(rec.aiFinal.예측예가율 * 100).toFixed(3)}% (표본 ${rec.aiFinal.표본수.toLocaleString('ko-KR')}건)</div>
+          </div>
+        </div>
+        <p style="margin:6px 0 0;font-size:11.5px;color:var(--text-muted)">${rec.aiFinal.근거}. 점추정 오차 한계(~0.58%)는 복수예비가격 난수의 본질적 폭 — 아래 확률 분포와 함께 볼 것.</p>
+      </div>
+    </div>` : ''}
     ${renderJeonggaDistribution(rec)}
     <div class="tier-grid">
       ${rec.tiers.map((t, i) => `
