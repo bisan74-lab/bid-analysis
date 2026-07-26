@@ -143,6 +143,15 @@ app.get('/api/ai-prediction/report.json', (req, res) => {
   }
 });
 
+// Version_2 낙찰 전략(경쟁강도 세그먼트·저경쟁 니치). 순수계산이라 매 요청 즉석 계산.
+app.get('/api/v2-strategy.json', (req, res) => {
+  try {
+    res.json(analysis.computeV2Strategy());
+  } catch (e) {
+    res.status(500).json({ error: String(e.message || e) });
+  }
+});
+
 // 낙찰 가능성 백테스트. 파일이 없으면 즉석 계산(1초 이내)해서 응답.
 app.get('/api/win-probability.json', (req, res) => {
   try {

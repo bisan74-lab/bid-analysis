@@ -717,6 +717,58 @@ function computeWinProbability({ sweepStep = 0.005, sweepRange = 1.5 } = {}) {
   };
 }
 
+// Version_2 전략 페이지용 집계: "낙찰 확률을 어떻게 높일 것인가"를 복합 요소로 분석한다.
+// 경쟁강도가 낙찰률의 최대 변수라는 발견(저경쟁 니치)을 세그먼트별로 정량화. 순수 통계(~0.3초).
+function computeV2Strategy() {
+  const rows = loadHistory().filter(r => r.참여업체수 && r.일순위사정률 != null && r.예정가격사정률 != null && r.기초금액);
+  const CAP = { 포장: 927_892_000, 수도: 1_877_206_000 };
+  const fit = rows.filter(r => (r.is포장군 && r.기초금액 <= CAP.포장) || (r.is상하수도군 && r.기초금액 <= CAP.수도));
+  const winAt = (list, s = -0.067) => { if (!list.length) return null; let w = 0; for (const r of list) if (s >= r.예정가격사정률 && s < r.일순위사정률) w++; return w / list.length; };
+  const med = (arr) => { if (!arr.length) return null; const a = arr.slice().sort((x, y) => x - y); return a[Math.floor(a.length / 2)]; };
+
+  const overall = winAt(fit);
+
+  const COMP = [[1, 20, '20개사 이하'], [21, 50, '21~50개사'], [51, 100, '51~100개사'], [101, 200, '101~200개사'], [201, 400, '201~400개사'], [401, Infinity, '400개 초과']];
+  const byComp = COMP.map(([lo, hi, label]) => {
+    const l = fit.filter(r => r.참여업체수 >= lo && r.참여업체수 <= hi);
+    const wr = winAt(l);
+    return { label, n: l.length, winRate: wr, 배수: wr && overall ? wr / overall : null };
+  }).filter(b => b.n > 0);
+
+  const AMT = [[0, 50e6, '5천만 이하'], [50e6, 100e6, '5천만~1억'], [100e6, 300e6, '1억~3억'], [300e6, 500e6, '3억~5억'], [500e6, 1e9, '5억~10억']];
+  const byAmt = AMT.map(([lo, hi, label]) => {
+    const l = fit.filter(r => r.기초금액 >= lo && r.기초금액 < hi);
+    return { label, n: l.length, 중앙참여: med(l.map(r => r.참여업체수)), winRate: winAt(l) };
+  }).filter(b => b.n > 0);
+
+  const byGroup = [['포장(지반조성)', r => r.is포장군], ['상하수도', r => r.is상하수도군]].map(([label, f]) => {
+    const l = fit.filter(f);
+    return { label, n: l.length, 중앙참여: med(l.map(r => r.참여업체수)), winRate: winAt(l) };
+  });
+
+  const low = fit.filter(r => r.참여업체수 <= 50);
+  const lowRecent = low.filter(r => r.연차구분 === '최근1년');
+  const orgCount = {};
+  for (const r of low) orgCount[r.발주처] = (orgCount[r.발주처] || 0) + 1;
+  const targetOrgs = Object.entries(orgCount).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([name, count]) => ({ name, count }));
+  const lowWin = winAt(low);
+  const low20 = fit.filter(r => r.참여업체수 <= 20);
+
+  return {
+    n: fit.length,
+    overallWinRate: overall,
+    byComp,
+    byAmt,
+    byGroup,
+    저경쟁: {
+      n: low.length, 최근1년: lowRecent.length, winRate: lowWin, 배수: lowWin && overall ? lowWin / overall : null,
+      win20: winAt(low20), n20: low20.length,
+      포장: low.filter(r => r.is포장군).length, 상하수도: low.filter(r => r.is상하수도군).length,
+      targetOrgs,
+    },
+  };
+}
+
 // ── Version_2 (복합 요소 기반 확률 추론) ─────────────────────────────────────
 // Version_1(예정가격 점예측)과 목적이 다르다. 여기서는 "이 공고를 딸 확률과 유리한 투찰점"을 다요소로
 // 추론한다. 사용 신호: (1) 예상 경쟁강도(참여업체수) — 발주처·규모·업종군 패턴으로 추정, (2) 경쟁강도
@@ -837,4 +889,4 @@ function predictJeonggaPrice(feature, { k = 20 } = {}) {
   };
 }
 
-module.exports = { loadHistory, loadHistoryFromText, parseHistory, recommendBid, computeOverviewStats, getTopCompanies, predictCompanyBid, predictJeonggaPrice, predictJeonggaFinal, validateFullHistory, computeWinProbability, computeV2Inference, computeCategoryDeviation, computeTuchalAmount, computeJeonggaDistribution, RECENCY_WEIGHTS };
+module.exports = { loadHistory, loadHistoryFromText, parseHistory, recommendBid, computeOverviewStats, getTopCompanies, predictCompanyBid, predictJeonggaPrice, predictJeonggaFinal, validateFullHistory, computeWinProbability, computeV2Inference, computeV2Strategy, computeCategoryDeviation, computeTuchalAmount, computeJeonggaDistribution, RECENCY_WEIGHTS };

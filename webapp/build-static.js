@@ -70,6 +70,9 @@ function main() {
   writeJson('api/win-probability.json',
     fs.existsSync(winProbPath) ? JSON.parse(fs.readFileSync(winProbPath, 'utf8')) : analysis.computeWinProbability());
 
+  // Version_2 낙찰 전략(경쟁강도 세그먼트·저경쟁 니치) — 순수계산으로 빌드 시점 생성.
+  writeJson('api/v2-strategy.json', analysis.computeV2Strategy());
+
   // 4) 항목별 상세분석 (진행중입찰 + 맞춤정보 합쳐서, posting_id 중복 제거)
   const seen = new Set();
   const allItems = [...openBids.items, ...myBidList.items].filter(it => {

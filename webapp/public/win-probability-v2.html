@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>낙찰 확률 극대화 전략 (Version 2) — 케이알에스건설</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div>
+      <h1>낙찰 확률 극대화 전략 <span class="badge-v2">Version_2</span></h1>
+      <p>"낙찰 확률을 어떻게 높일 것인가" — 경쟁강도·발주처 패턴 등 복합 요소로 유리한 공고를 골라내는 확률 추론</p>
+    </div>
+    <div style="display:flex;align-items:center;gap:14px">
+      <a href="/" class="toggle-link">← 대시보드</a>
+    </div>
+  </header>
+
+  <nav class="tab-nav">
+    <a href="/" class="tab-link">분석 대시보드</a>
+    <a href="/win-probability.html" class="tab-link">낙찰 가능성 <span class="badge-v1">V1</span></a>
+    <a href="/win-probability-v2.html" class="tab-link active">낙찰 전략 <span class="badge-v2">V2</span></a>
+  </nav>
+
+  <section>
+    <h2>핵심 — 경쟁강도가 낙찰률의 최대 변수</h2>
+    <div class="card">
+      <p class="section-sub" id="lead">계산 중…</p>
+      <div id="v2-tiles" class="stat-grid" style="margin-top:10px"></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>1. 경쟁강도 구간별 낙찰률</h2>
+    <div class="charts-grid">
+      <div class="card">
+        <p class="chart-title">참여업체수 구간별 낙찰률</p>
+        <p class="chart-sub">모델 중심 투찰 기준. 경쟁이 적을수록 낙찰률이 급등합니다 (막대가 길수록 유리)</p>
+        <div id="chart-comp"></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>2. 어떤 공고를 고를 것인가 — 세그먼트별 유리도</h2>
+    <div class="charts-grid">
+      <div class="card">
+        <p class="chart-title">금액 규모별</p>
+        <p class="chart-sub">중앙 참여업체수 / 낙찰률</p>
+        <div id="table-amt"></div>
+      </div>
+      <div class="card">
+        <p class="chart-title">업종별</p>
+        <p class="chart-sub">중앙 참여업체수 / 낙찰률</p>
+        <div id="table-group"></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>3. 저경쟁 니치 — 집중 공략 대상</h2>
+    <div class="card">
+      <p class="section-sub" id="niche-lead">계산 중…</p>
+      <div id="niche-tiles" class="stat-grid" style="margin-top:10px"></div>
+      <p class="chart-title" style="margin:18px 0 4px">중점 모니터링 발주처 <span class="chart-sub" style="display:inline">— 저경쟁 공고를 반복 발주하는 곳(알림 우선순위 최상위)</span></p>
+      <div id="table-orgs"></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>4. 실행 원칙</h2>
+    <div class="card">
+      <ul style="margin:0;padding-left:20px;font-size:13.5px;line-height:1.9;color:var(--text-secondary)">
+        <li><b style="color:var(--text-primary)">경쟁 적은 공고를 고른다</b> — 공고별 상세분석의 <span class="badge-v2">Version_2</span> "예상 참여업체수/종합판정"으로 유리한 건을 선별.</li>
+        <li><b style="color:var(--text-primary)">간이심사부터</b> — 신용등급 C 리스크를 감안해 소액수의·전자견적(간이 적격심사) 비중을 높인다.</li>
+        <li><b style="color:var(--text-primary)">꾸준히·다수</b> — 단건은 확률 게임이므로, 선별 기준을 통과하는 건에 지속적으로 참여해 누적 기대 낙찰을 쌓는다.</li>
+        <li><b style="color:var(--text-primary)">무효 투찰 방지</b> — 기초금액·A값·낙찰하한율을 정확히 반영(Version_1 계산기)해 하한가 미달을 없앤다.</li>
+      </ul>
+      <p class="section-sub" style="margin-top:14px">※ 낙찰률은 "모델 중심 투찰 시 가격 1순위" 기준의 확률적 추정이며, 적격심사 통과·채산성은 별도입니다. 실제 결과를 보장하지 않습니다.</p>
+    </div>
+  </section>
+
+  <footer class="page-footer">
+    (주)케이알에스건설 내부 분석용 · Version_2 복합 요소 확률 추론 · 데이터: 아이건설넷 과거 낙찰이력(부산·경남 3년, 수주가능 규모) · 순수 통계 계산(토큰 미소비) · 실제 투찰 결정은 최신 공고 조건을 반드시 재확인하세요.
+  </footer>
+</div>
+
+<div id="tooltip" class="tooltip"></div>
+<script src="win-probability-v2.js"></script>
+</body>
+</html>
