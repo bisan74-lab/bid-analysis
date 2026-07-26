@@ -146,11 +146,30 @@ function renderV2(rec) {
   const mult = v.확률배수;
   const multTxt = mult == null ? '-' : (mult >= 1 ? '유리 ▲' : '불리 ▼') + ' ' + mult.toFixed(1) + '배';
   const v2color = '#6b3fd6';
+  const 판정색 = { 유리: '#12855a', 보통: cssVar('--text-secondary'), 불리: '#e34948', 판정불가: cssVar('--text-muted') }[v.종합판정] || v2color;
+
+  const signalColor = { 기회: '#12855a', 주의: '#e34948', 패턴: v2color };
+  const signals = (v.특이신호 || []).map(s =>
+    `<li style="margin:2px 0"><b style="color:${signalColor[s.type] || v2color}">[${s.type}]</b> ${s.text}</li>`).join('');
+
+  const cases = (v.유사사례 || []).map(c =>
+    `<tr>
+       <td style="text-align:left;max-width:230px;white-space:normal">${c.title || '-'}</td>
+       <td>${fmtWon(c.기초금액)}</td>
+       <td>${c.참여업체수}개사</td>
+       <td>${c.낙찰사정률 != null ? c.낙찰사정률.toFixed(3) + '%' : '-'}</td>
+     </tr>`).join('');
+
   return `
     <div class="strategy-block">
       <div class="strategy-group">
-        <p class="strategy-title" style="color:${v2color}"><span class="badge-v2">Version_2</span> 복합 요소 낙찰 확률 추론 <span class="strategy-sub">— 예상 경쟁강도·낙찰확률 추정(확정값이 아닌 확률적 추론)</span></p>
+        <p class="strategy-title" style="color:${v2color}"><span class="badge-v2">Version_2</span> 복합 요소 낙찰 확률 추론 <span class="strategy-sub">— 예상 경쟁강도·낙찰확률·유사사례 기반 추론(확정값이 아닌 확률적 추정)</span></p>
         <div class="tier-grid">
+          <div class="tier-tile" style="border-color:${판정색}88">
+            <div class="p">종합 판정</div>
+            <div class="amt" style="color:${판정색}">${v.종합판정}</div>
+            <div class="ratio">시장 대비 ${multTxt}</div>
+          </div>
           <div class="tier-tile" style="border-color:${gradeColor}66">
             <div class="p">예상 참여업체수</div>
             <div class="amt">${v.예상참여업체수}개사</div>
@@ -159,7 +178,7 @@ function renderV2(rec) {
           <div class="tier-tile" style="border-color:${v2color}66">
             <div class="p">예상 낙찰확률</div>
             <div class="amt">${pct(v.예상낙찰확률)}</div>
-            <div class="ratio">시장 평균 ${pct(v.기준낙찰확률)} 대비 ${multTxt}</div>
+            <div class="ratio">시장 평균 ${pct(v.기준낙찰확률)}</div>
           </div>
           <div class="tier-tile" style="border-color:${v2color}66">
             <div class="p">발주처 낙찰 투찰성향</div>
@@ -167,7 +186,16 @@ function renderV2(rec) {
             <div class="ratio">그룹 평균 ${v.그룹낙찰사정률.toFixed(3)}%</div>
           </div>
         </div>
-        <p style="margin:8px 0 0;font-size:11.5px;color:var(--text-muted)">근거: ${v.참여추정근거}. 예상 낙찰확률은 이 경쟁강도 구간의 과거 실측 낙찰률(모델 중심 투찰 기준)로, 실제 결과를 보장하지 않는 확률적 추정입니다. 발주처 투찰성향은 이 발주처 낙찰자들이 통상 투찰한 사정률로, 유리한 투찰점의 힌트입니다.</p>
+        ${signals ? `<ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px;color:var(--text-secondary)">${signals}</ul>` : ''}
+        ${cases ? `
+        <p class="strategy-sub" style="margin:12px 0 4px;display:block">유사 사례 <span style="opacity:.7">— ${v.표본.발주처 >= 4 ? '같은 발주처' : '업종군'}에서 규모가 가까운 과거 공고의 실제 결과</span></p>
+        <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12.5px">
+          <thead><tr style="color:var(--text-muted)">
+            <th style="text-align:left;padding:3px 8px">공사</th><th style="text-align:right;padding:3px 8px">기초금액</th><th style="text-align:right;padding:3px 8px">참여</th><th style="text-align:right;padding:3px 8px">낙찰사정률</th>
+          </tr></thead>
+          <tbody>${cases}</tbody>
+        </table></div>` : ''}
+        <p style="margin:10px 0 0;font-size:11.5px;color:var(--text-muted)">근거: ${v.참여추정근거}. 예상 낙찰확률은 이 경쟁강도 구간의 과거 실측 낙찰률(모델 중심 투찰 기준)이며, 실제 결과를 보장하지 않는 확률적 추정입니다.</p>
       </div>
     </div>
   `;

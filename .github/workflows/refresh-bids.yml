@@ -1,0 +1,39 @@
+name: Refresh bid snapshot
+
+# 매일 07:00 KST에 나라장터를 조회해 커밋되는 스냅샷을 갱신한다.
+# (배포된 Worker cron은 08:00 KST에 KV를 갱신 — 이건 별개로 "커밋되는 정적 폴백 + 최신 공고 가시성"용)
+on:
+  schedule:
+    - cron: '0 22 * * *'   # 22:00 UTC = 07:00 KST
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh-snapshot
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Fetch 나라장터 → snapshot
+        working-directory: webapp
+        run: node scripts/refresh-snapshot.js
+        env:
+          G2B_SERVICE_KEY: ${{ secrets.G2B_SERVICE_KEY }}
+      - name: Commit snapshot if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add webapp/data/snapshot/*.snapshot.json
+          if git diff --staged --quiet; then
+            echo "스냅샷 변경 없음 — 커밋 생략"
+          else
+            git commit -m "chore: 나라장터 스냅샷 자동 갱신 [skip ci]"
+            git push
+          fi

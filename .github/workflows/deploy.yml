@@ -1,0 +1,31 @@
+name: Deploy (Cloudflare Worker)
+
+# main에 코드가 push되면 정적 자산을 빌드하고 Worker를 자동 배포한다.
+# 스냅샷 자동 커밋(refresh-bids)과 문서 변경은 배포를 트리거하지 않도록 제외.
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'webapp/data/snapshot/**'
+      - '**/*.md'
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-cloudflare
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build static assets (webapp/dist)
+        run: node webapp/build-static.js
+      - name: Deploy Worker
+        run: npx --yes wrangler@4 deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
