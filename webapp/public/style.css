@@ -180,12 +180,13 @@ section > .section-sub { font-size: 12.5px; color: var(--text-secondary); margin
 .avalue-result { margin-top: 10px; font-size: 12.5px; color: var(--text-secondary); }
 .avalue-result .av-out { font-size: 16px; font-weight: 700; color: var(--text-primary); font-variant-numeric: tabular-nums; margin-left: 6px; }
 
-.badge-new {
+.badge-new, .badge-v1, .badge-v2 {
   display: inline-block; vertical-align: middle; margin: 0 4px;
-  padding: 1px 6px; border-radius: 10px; font-size: 10px; font-weight: 800; letter-spacing: 0.3px;
-  color: #fff; background: linear-gradient(135deg, #ff5a5f, #ff8a3d);
-  text-transform: uppercase; line-height: 1.5;
+  padding: 1px 7px; border-radius: 10px; font-size: 10px; font-weight: 800; letter-spacing: 0.3px;
+  color: #fff; line-height: 1.5; white-space: nowrap;
 }
+.badge-new, .badge-v1 { background: linear-gradient(135deg, #ff5a5f, #ff8a3d); }   /* Version_1 (검증 모델) */
+.badge-v2 { background: linear-gradient(135deg, #6b3fd6, #11a68a); }              /* Version_2 (복합 추론) */
 .highlight-new { color: #ff6b35; }
 
 /* 상단 탭 네비게이션 (대시보드 ↔ 낙찰 가능성 분석) */

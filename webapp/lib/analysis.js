@@ -318,6 +318,9 @@ function recommendBid(기초금액, 대업종, { 종목, 발주처 } = {}) {
   // AI최종 예정가격 예측(가중중앙값 기반, 위 predictJeonggaFinal 주석의 채택/배제 근거 참고).
   const aiFinal = predictJeonggaFinal({ 기초금액, 대업종 });
 
+  // Version_2 복합 요소 확률 추론 (예상 경쟁강도·낙찰확률·발주처 투찰성향).
+  const v2 = computeV2Inference({ 기초금액, 대업종, 종목, 발주처 });
+
   return {
     기초금액,
     추정예정가격: estimatedApprovedPrice,
@@ -325,6 +328,7 @@ function recommendBid(기초금액, 대업종, { 종목, 발주처 } = {}) {
     표본수: winRatioItems.length,
     예정가격분포,
     aiFinal,
+    v2,
     tiers,
     stableRegression,
     aggressiveCluster,
@@ -713,6 +717,61 @@ function computeWinProbability({ sweepStep = 0.005, sweepRange = 1.5 } = {}) {
   };
 }
 
+// ── Version_2 (복합 요소 기반 확률 추론) ─────────────────────────────────────
+// Version_1(예정가격 점예측)과 목적이 다르다. 여기서는 "이 공고를 딸 확률과 유리한 투찰점"을 다요소로
+// 추론한다. 사용 신호: (1) 예상 경쟁강도(참여업체수) — 발주처·규모·업종군 패턴으로 추정, (2) 경쟁강도
+// 구간별 실측 낙찰률, (3) 발주처별 낙찰자 투찰 사정률 성향(1순위사정률). 예가율과 달리 이 신호들은 낙찰
+// 결과에 실제로 영향을 준다(예: 경쟁이 적을수록 낙찰률 급등 — 백테스트로 확인).
+// ★ 추론 모델이므로 결과는 확정이 아니라 확률적 추정이다. UI에서 반드시 "추론/추정"으로 표시한다.
+function computeV2Inference(feature) {
+  const rows = loadHistory().filter(r => r.참여업체수 && r.일순위사정률 != null && r.예정가격사정률 != null);
+  const hasP = (feature.대업종 || '').includes('지반조성.포장');
+  const hasS = (feature.대업종 || '').includes('상.하수도');
+  const grp = hasS && !hasP ? rows.filter(r => r.is상하수도군)
+    : hasP && !hasS ? rows.filter(r => r.is포장군) : rows;
+
+  const med = (arr) => { if (!arr.length) return null; const s = arr.slice().sort((a, b) => a - b); return s[Math.floor(s.length / 2)]; };
+  const AMT = [[0, 50e6], [50e6, 100e6], [100e6, 300e6], [300e6, 500e6], [500e6, 1e9], [1e9, Infinity]];
+  const amtIdx = (v) => AMT.findIndex(([lo, hi]) => v >= lo && v < hi);
+
+  // (1) 예상 경쟁강도 추정 (발주처 → 규모대 → 업종군 순, 표본 충분한 단계 채택 + 블렌드)
+  const orgRows = grp.filter(r => r.발주처 === feature.발주처);
+  const bucketRowsAmt = grp.filter(r => amtIdx(r.기초금액) === amtIdx(feature.기초금액));
+  const orgMed = med(orgRows.map(r => r.참여업체수));
+  const bucketMed = med(bucketRowsAmt.map(r => r.참여업체수));
+  const grpMed = med(grp.map(r => r.참여업체수));
+  let 예상참여, 근거;
+  if (orgRows.length >= 8) { 예상참여 = Math.round(orgMed * 0.6 + bucketMed * 0.25 + grpMed * 0.15); 근거 = `발주처 ${orgRows.length}건(중앙 ${orgMed}개사) + 규모·업종 블렌드`; }
+  else if (bucketRowsAmt.length >= 20) { 예상참여 = Math.round(bucketMed * 0.6 + grpMed * 0.4); 근거 = `동일 규모대 ${bucketRowsAmt.length}건(중앙 ${bucketMed}개사) 기준`; }
+  else { 예상참여 = grpMed; 근거 = `업종군 전체 중앙 ${grpMed}개사(표본 부족)`; }
+
+  // (2) 경쟁강도 구간별 실측 낙찰률 (모델 중심 투찰 -0.067% 기준)
+  const winAt = (list) => { if (!list.length) return null; let w = 0; for (const r of list) if (-0.067 >= r.예정가격사정률 && -0.067 < r.일순위사정률) w++; return w / list.length; };
+  const COMP = [[0, 20], [21, 50], [51, 100], [101, 200], [201, 400], [401, Infinity]];
+  const ci = COMP.findIndex(([lo, hi]) => 예상참여 >= lo && 예상참여 <= hi);
+  const compRows = grp.filter(r => r.참여업체수 >= COMP[ci][0] && r.참여업체수 <= COMP[ci][1]);
+  const 예상낙찰확률 = winAt(compRows);
+  const 기준낙찰확률 = winAt(grp);
+
+  // (3) 발주처 낙찰자 투찰 사정률 성향 (권장 투찰점 힌트) — 예가율과 달리 낙찰 측 신호는 발주처별로 다를 수 있음
+  const 발주처낙찰사정률 = orgRows.length >= 8 ? med(orgRows.map(r => r.일순위사정률)) : null;
+  const 그룹낙찰사정률 = med(grp.map(r => r.일순위사정률));
+
+  const 등급 = 예상참여 <= 50 ? '저경쟁' : 예상참여 <= 150 ? '중경쟁' : '고경쟁';
+
+  return {
+    예상참여업체수: 예상참여,
+    참여추정근거: 근거,
+    경쟁강도등급: 등급,
+    예상낙찰확률,
+    기준낙찰확률,
+    확률배수: (예상낙찰확률 && 기준낙찰확률) ? 예상낙찰확률 / 기준낙찰확률 : null,
+    발주처낙찰사정률: 발주처낙찰사정률,
+    그룹낙찰사정률: 그룹낙찰사정률,
+    표본: { 발주처: orgRows.length, 규모대: bucketRowsAmt.length, 그룹: grp.length },
+  };
+}
+
 // 개선 통계모델: 예정가격(예가율) 예측에 발주처별 편차를 축소추정(James–Stein식 shrinkage)으로 반영한다.
 // 기존 baseline(recommendBid의 추정예정가격)은 종목군 전체 가중평균 예가율만 곱하는데, 실제로는 발주처마다
 // 기초금액 산정·버림 관행 차이로 예가율에 미세한 계통 편차가 있을 수 있다. 발주처 표본이 많을수록 그 발주처
@@ -747,4 +806,4 @@ function predictJeonggaPrice(feature, { k = 20 } = {}) {
   };
 }
 
-module.exports = { loadHistory, loadHistoryFromText, parseHistory, recommendBid, computeOverviewStats, getTopCompanies, predictCompanyBid, predictJeonggaPrice, predictJeonggaFinal, validateFullHistory, computeWinProbability, computeCategoryDeviation, computeTuchalAmount, computeJeonggaDistribution, RECENCY_WEIGHTS };
+module.exports = { loadHistory, loadHistoryFromText, parseHistory, recommendBid, computeOverviewStats, getTopCompanies, predictCompanyBid, predictJeonggaPrice, predictJeonggaFinal, validateFullHistory, computeWinProbability, computeV2Inference, computeCategoryDeviation, computeTuchalAmount, computeJeonggaDistribution, RECENCY_WEIGHTS };

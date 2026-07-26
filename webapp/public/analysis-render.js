@@ -96,7 +96,7 @@ function renderJeonggaDistribution(rec) {
   return `
     <div class="strategy-block">
       <div class="strategy-group">
-        <p class="strategy-title" style="color:${color}">예정가격 확률 분포 <span class="badge-new">NEW</span> <span class="strategy-sub">— 복수예비가격 15개 중 다빈도 4개 평균으로 정해지는 예정가격의 확률 구간(과거 예가율 분포 기준)</span></p>
+        <p class="strategy-title" style="color:${color}">예정가격 확률 분포 <span class="badge-v1">Version_1</span> <span class="strategy-sub">— 복수예비가격 15개 중 다빈도 4개 평균으로 정해지는 예정가격의 확률 구간(과거 예가율 분포 기준)</span></p>
         <div class="tier-grid">${tiles}</div>
       </div>
     </div>
@@ -114,7 +114,7 @@ function renderAValueCalculator(rec) {
   return `
     <div class="strategy-block">
       <div class="strategy-group avalue-calc">
-        <p class="strategy-title">투찰금액 계산기 (A값 적용) <span class="badge-new">NEW</span> <span class="strategy-sub">— (예정가격 − A값) × 낙찰하한율 + A값. A값은 노무비·보험료·산업안전보건관리비 등 낙찰률 할인 대상에서 제외되는 고정 실비</span></p>
+        <p class="strategy-title">투찰금액 계산기 (A값 적용) <span class="badge-v1">Version_1</span> <span class="strategy-sub">— (예정가격 − A값) × 낙찰하한율 + A값. A값은 노무비·보험료·산업안전보건관리비 등 낙찰률 할인 대상에서 제외되는 고정 실비</span></p>
         <div class="avalue-inputs">
           <label>예정가격(원)<input type="number" class="av-jeongga" value="${예정가격}" oninput="krsCalcTuchal(this)"></label>
           <label>낙찰하한율(%)<input type="number" step="0.001" class="av-rate" value="${하한율}" oninput="krsCalcTuchal(this)"></label>
@@ -135,6 +135,42 @@ function krsCalcTuchal(el) {
   const A값 = Number(box.querySelector('.av-a').value) || 0;
   const 투찰 = Math.round((예정가격 - A값) * 하한율 + A값);
   box.querySelector('.av-out').textContent = Number.isFinite(투찰) && 예정가격 > 0 ? fmtWon(투찰) : '-';
+}
+
+// Version_2 (복합 요소 확률 추론): 예상 경쟁강도·낙찰확률·발주처 투찰성향. 확정이 아닌 추론치임을 명시.
+function renderV2(rec) {
+  const v = rec.v2;
+  if (!v) return '';
+  const pct = (x, d = 2) => x == null ? '-' : (x * 100).toFixed(d) + '%';
+  const gradeColor = v.경쟁강도등급 === '저경쟁' ? '#12855a' : v.경쟁강도등급 === '고경쟁' ? '#e34948' : cssVar('--text-secondary');
+  const mult = v.확률배수;
+  const multTxt = mult == null ? '-' : (mult >= 1 ? '유리 ▲' : '불리 ▼') + ' ' + mult.toFixed(1) + '배';
+  const v2color = '#6b3fd6';
+  return `
+    <div class="strategy-block">
+      <div class="strategy-group">
+        <p class="strategy-title" style="color:${v2color}"><span class="badge-v2">Version_2</span> 복합 요소 낙찰 확률 추론 <span class="strategy-sub">— 예상 경쟁강도·낙찰확률 추정(확정값이 아닌 확률적 추론)</span></p>
+        <div class="tier-grid">
+          <div class="tier-tile" style="border-color:${gradeColor}66">
+            <div class="p">예상 참여업체수</div>
+            <div class="amt">${v.예상참여업체수}개사</div>
+            <div class="ratio" style="color:${gradeColor}">${v.경쟁강도등급}</div>
+          </div>
+          <div class="tier-tile" style="border-color:${v2color}66">
+            <div class="p">예상 낙찰확률</div>
+            <div class="amt">${pct(v.예상낙찰확률)}</div>
+            <div class="ratio">시장 평균 ${pct(v.기준낙찰확률)} 대비 ${multTxt}</div>
+          </div>
+          <div class="tier-tile" style="border-color:${v2color}66">
+            <div class="p">발주처 낙찰 투찰성향</div>
+            <div class="amt">${v.발주처낙찰사정률 != null ? v.발주처낙찰사정률.toFixed(3) + '%' : '표본부족'}</div>
+            <div class="ratio">그룹 평균 ${v.그룹낙찰사정률.toFixed(3)}%</div>
+          </div>
+        </div>
+        <p style="margin:8px 0 0;font-size:11.5px;color:var(--text-muted)">근거: ${v.참여추정근거}. 예상 낙찰확률은 이 경쟁강도 구간의 과거 실측 낙찰률(모델 중심 투찰 기준)로, 실제 결과를 보장하지 않는 확률적 추정입니다. 발주처 투찰성향은 이 발주처 낙찰자들이 통상 투찰한 사정률로, 유리한 투찰점의 힌트입니다.</p>
+      </div>
+    </div>
+  `;
 }
 
 // 공고의 세부 종목/발주처 특성이 기준 낙찰률에서 얼마나 벗어나는지(작은 편차) 반영한 경우, 그 내역을 보여준다.
@@ -166,7 +202,7 @@ function renderAnalysisBody(data) {
     : '';
   return `
     <div style="font-size:12.5px;color:var(--text-secondary)">
-      기준 <b style="color:var(--text-primary)">기초금액 ${fmtWon(rec.기초금액)}</b>${item.기초금액추정 ? ' <span class="badge-new">NEW</span>' : ''}${baseNote}
+      기준 <b style="color:var(--text-primary)">기초금액 ${fmtWon(rec.기초금액)}</b>${item.기초금액추정 ? ' <span class="badge-v1">Version_1</span>' : ''}${baseNote}
     </div>
     <div style="font-size:12.5px;color:var(--text-secondary);margin-top:2px">
       추정 예정가격 <b style="color:var(--text-primary)">${fmtWon(rec.추정예정가격)}</b>
@@ -186,6 +222,7 @@ function renderAnalysisBody(data) {
         <p style="margin:6px 0 0;font-size:11.5px;color:var(--text-muted)">${rec.aiFinal.근거}. 점추정 오차 한계(~0.58%)는 복수예비가격 난수의 본질적 폭 — 아래 확률 분포와 함께 볼 것.</p>
       </div>
     </div>` : ''}
+    ${renderV2(rec)}
     ${renderJeonggaDistribution(rec)}
     <div class="tier-grid">
       ${rec.tiers.map((t, i) => `
