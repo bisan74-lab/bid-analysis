@@ -380,6 +380,14 @@ async function loadItemAnalysis(analysisEl, postingId) {
   }
 }
 
+// 입찰 목록 항목에 붙는 Version_2 종합판정 칩(유리/보통/불리 + 경쟁강도). 클릭 없이 바로 스캔용.
+function v2Chip(v2) {
+  if (!v2 || !v2.종합판정) return '';
+  const c = { 유리: '#12855a', 보통: '#8a7f2e', 불리: '#d24444' }[v2.종합판정] || '#6b3fd6';
+  const 배수 = v2.확률배수 != null ? ` ${v2.확률배수.toFixed(1)}x` : '';
+  return `<span class="v2-chip" style="background:${c}" title="Version_2 낙찰확률 추론 · 예상 참여 ${v2.예상참여업체수}개사(${v2.경쟁강도등급})">V2 ${v2.종합판정}${배수}</span>`;
+}
+
 function renderBidList(listElId, data, { emptyMsg, updatedElId, countLabel, openInNewTab } = {}) {
   const el = document.getElementById(listElId);
   const updatedEl = updatedElId ? document.getElementById(updatedElId) : null;
@@ -398,7 +406,7 @@ function renderBidList(listElId, data, { emptyMsg, updatedElId, countLabel, open
     card.innerHTML = `
       <div class="row1">
         <div class="title">${item.title}</div>
-        <div class="badge">${item.종목 || ''}</div>
+        <div class="row1-badges">${v2Chip(item.v2판정)}<div class="badge">${item.종목 || ''}</div></div>
       </div>
       <div class="meta">${bidMetaLine(item)}</div>
       ${openInNewTab ? '' : '<div class="bid-analysis" data-loaded="0"></div>'}

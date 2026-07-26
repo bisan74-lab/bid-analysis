@@ -87,6 +87,10 @@ async function refreshBids(env, { notify: doNotify } = {}) {
   const prevIds = new Set((prev?.items || []).map(i => i.posting_id));
   const newItems = openPayload.items.filter(i => !prevIds.has(i.posting_id));
 
+  // 목록 항목에 경량 Version_2 판정을 붙여 저장(대시보드 목록 칩용).
+  for (const it of (openPayload.items || [])) it.v2판정 = analysis.summarizeV2ForItem(it);
+  for (const it of (myBidPayload.items || [])) it.v2판정 = analysis.summarizeV2ForItem(it);
+
   await env.ADMIN_KV.put('open_bids', JSON.stringify(openPayload));
   await env.ADMIN_KV.put('mybid_list', JSON.stringify(myBidPayload));
 
@@ -138,6 +142,21 @@ async function serveKvOrAsset(env, request, key) {
   const raw = await env.ADMIN_KV.get(key);
   if (raw) return new Response(raw, { headers: { 'Content-Type': 'application/json' } });
   return env.ASSETS.fetch(request);
+}
+
+// 입찰 목록(open_bids/mybid_list) 서빙: 항목에 v2판정이 없으면(구버전 KV) 최신 코드로 붙여 응답·갱신(자가치유).
+async function serveBidList(env, request, key) {
+  const raw = await env.ADMIN_KV.get(key);
+  if (!raw) return env.ASSETS.fetch(request);
+  let payload;
+  try { payload = JSON.parse(raw); } catch (e) { return new Response(raw, { headers: { 'Content-Type': 'application/json' } }); }
+  let changed = false;
+  for (const it of (payload.items || [])) {
+    if (!it.v2판정) { it.v2판정 = analysis.summarizeV2ForItem(it); changed = true; }
+  }
+  const body = JSON.stringify(payload);
+  if (changed) { try { await env.ADMIN_KV.put(key, body); } catch (e) { /* noop */ } }
+  return new Response(body, { headers: { 'Content-Type': 'application/json' } });
 }
 
 async function serveAnalysis(env, request, url) {
@@ -241,8 +260,8 @@ export default {
         return json({ error: String((e && e.message) || e) }, 500);
       }
     }
-    if (url.pathname === '/api/open-bids.json') return serveKvOrAsset(env, request, 'open_bids');
-    if (url.pathname === '/api/mybid-list.json') return serveKvOrAsset(env, request, 'mybid_list');
+    if (url.pathname === '/api/open-bids.json') return serveBidList(env, request, 'open_bids');
+    if (url.pathname === '/api/mybid-list.json') return serveBidList(env, request, 'mybid_list');
     if (url.pathname.startsWith('/api/analysis/')) return serveAnalysis(env, request, url);
 
     return env.ASSETS.fetch(request);

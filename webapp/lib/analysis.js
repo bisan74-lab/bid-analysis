@@ -836,7 +836,8 @@ function computeV2Inference(feature) {
     특이신호.push({ type: '패턴', text: `이 발주처 낙찰자들은 통상보다 ${dir} 사정률(${발주처낙찰사정률.toFixed(3)}%)에서 낙찰 — 투찰점 조정 힌트` });
   }
 
-  const 확률배수 = (예상낙찰확률 && 기준낙찰확률) ? 예상낙찰확률 / 기준낙찰확률 : null;
+  // 낙찰확률 0%도 유효한 값(초고경쟁 = 불리)이므로 falsy가 아니라 null 여부로 판정.
+  const 확률배수 = (예상낙찰확률 != null && 기준낙찰확률) ? 예상낙찰확률 / 기준낙찰확률 : null;
   const 종합판정 = 확률배수 == null ? '판정불가' : 확률배수 >= 1.5 ? '유리' : 확률배수 <= 0.6 ? '불리' : '보통';
 
   return {
@@ -853,6 +854,17 @@ function computeV2Inference(feature) {
     특이신호,
     표본: { 발주처: orgRows.length, 규모대: bucketRowsAmt.length, 그룹: grp.length },
   };
+}
+
+// 입찰 목록 항목용 경량 Version_2 요약(종합판정·경쟁강도만). 대시보드 목록에서 클릭 없이 유리/불리를
+// 바로 스캔할 수 있게 각 item에 붙인다. 기초금액이 없으면 추정가격×1.1로 복원.
+function summarizeV2ForItem(item) {
+  const base = item.기초금액 || (item.추정가격 ? Math.round(item.추정가격 * 1.1) : null);
+  if (!base || !item.대업종) return null;
+  try {
+    const v = computeV2Inference({ 기초금액: base, 대업종: item.대업종, 종목: item.종목, 발주처: item.발주처 });
+    return { 종합판정: v.종합판정, 경쟁강도등급: v.경쟁강도등급, 예상참여업체수: v.예상참여업체수, 확률배수: v.확률배수 };
+  } catch (e) { return null; }
 }
 
 // 개선 통계모델: 예정가격(예가율) 예측에 발주처별 편차를 축소추정(James–Stein식 shrinkage)으로 반영한다.
@@ -889,4 +901,4 @@ function predictJeonggaPrice(feature, { k = 20 } = {}) {
   };
 }
 
-module.exports = { loadHistory, loadHistoryFromText, parseHistory, recommendBid, computeOverviewStats, getTopCompanies, predictCompanyBid, predictJeonggaPrice, predictJeonggaFinal, validateFullHistory, computeWinProbability, computeV2Inference, computeV2Strategy, computeCategoryDeviation, computeTuchalAmount, computeJeonggaDistribution, RECENCY_WEIGHTS };
+module.exports = { loadHistory, loadHistoryFromText, parseHistory, recommendBid, computeOverviewStats, getTopCompanies, predictCompanyBid, predictJeonggaPrice, predictJeonggaFinal, validateFullHistory, computeWinProbability, computeV2Inference, computeV2Strategy, summarizeV2ForItem, computeCategoryDeviation, computeTuchalAmount, computeJeonggaDistribution, RECENCY_WEIGHTS };

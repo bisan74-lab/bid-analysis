@@ -43,6 +43,10 @@ function main() {
   const myBidList = readSnapshot('mybid_list.snapshot.json');
   const snapshotTime = openBids.updatedAt || myBidList.updatedAt || new Date().toISOString();
 
+  // 목록 항목에 경량 Version_2 판정(종합판정·경쟁강도)을 붙여, 대시보드 목록에서 클릭 없이 유리/불리 스캔 가능.
+  for (const it of (openBids.items || [])) it.v2판정 = analysis.summarizeV2ForItem(it);
+  for (const it of (myBidList.items || [])) it.v2판정 = analysis.summarizeV2ForItem(it);
+
   // 2) (구) 정적 스냅샷 모드 플래그 주입은 제거됨. 이제 배포본은 Worker + KV(cron 자동갱신) 기반으로
   //    실시간 동작하므로 "실시간 새로고침" 버튼도 정상 작동한다. 아래 정적 JSON들은 KV가 비어있는
   //    최초 상태의 폴백 용도로만 생성한다.
