@@ -163,7 +163,7 @@ function renderV2(rec) {
   return `
     <div class="strategy-block">
       <div class="strategy-group">
-        <p class="strategy-title" style="color:${v2color}"><span class="badge-v2">Version_2</span> 복합 요소 낙찰 확률 추론 <span class="strategy-sub">— 예상 경쟁강도·낙찰확률·유사사례 기반 추론(확정값이 아닌 확률적 추정)</span></p>
+        <p class="strategy-title" style="color:${v2color}"><span class="badge-ai-final">AI최종</span><span class="badge-v2">Version_2</span> 복합 요소 낙찰 확률 추론 <span class="strategy-sub">— 최종 사용 버전. 예상 경쟁강도·낙찰확률·유사사례 기반 추론(확정값이 아닌 확률적 추정)</span></p>
         <div class="tier-grid">
           <div class="tier-tile" style="border-color:${판정색}88">
             <div class="p">종합 판정</div>
@@ -239,7 +239,7 @@ function renderAnalysisBody(data) {
     ${rec.aiFinal ? `
     <div class="strategy-block">
       <div class="strategy-group">
-        <p class="strategy-title"><span class="badge-ai-final">AI최종</span> 예정가격 예측 <span class="strategy-sub">— 4,157건 leave-one-out 실측으로 채택/배제를 수렴한 최종 모델 (채택: 기초금액 기준 + 가중중앙값 / 배제: 발주처·종목·지역 편차)</span></p>
+        <p class="strategy-title"><span class="badge-v1">Version_1</span> 최적 예정가격 예측 (가중중앙값) <span class="strategy-sub">— 4,157건 leave-one-out 실측으로 채택/배제를 수렴. 예정가격 점예측의 최적 (낙찰 확률은 아래 Version_2가 담당)</span></p>
         <div class="tier-grid">
           <div class="tier-tile" style="border-color:#6b5bffaa">
             <div class="p">AI최종 예측 예정가격</div>

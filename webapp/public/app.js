@@ -541,6 +541,41 @@ function renderAiFullHistory(full) {
     </div>`;
 }
 
+async function loadV2Strategy() {
+  try { const r = await fetch('/api/v2-strategy.json'); return r.ok ? r.json() : null; } catch (e) { return null; }
+}
+
+// Version_2 낙찰 확률 패널 + "AI최종 = 어느 버전" 최종 판정 배너.
+// 정직한 판단: 낙찰 확률을 실제로 높이는 것은 예정가격 정확도(V1)가 아니라 경쟁강도 선별(V2)이다.
+function renderAiFinalVerdict(s) {
+  const panel = document.getElementById('ai-v2-panel');
+  const verdict = document.getElementById('ai-final-verdict');
+  if (!s || s.error || !s.byComp) { if (panel) panel.innerHTML = ''; if (verdict) verdict.innerHTML = ''; return; }
+  const pc = (x, d = 2) => x == null ? '-' : (x * 100).toFixed(d) + '%';
+  const low = s.저경쟁, best = s.byComp[0];
+  if (panel) panel.innerHTML = `
+    <div class="card" style="margin-top:14px;border-left:3px solid #6b3fd6">
+      <p class="chart-title"><span class="badge-v2">Version_2</span> 낙찰 확률 기여 <span class="chart-sub" style="display:inline">— 예정가격이 아니라 "낙찰 확률"을 높이는 모델. 위 V1(예정가격 정확도)과 다른 목표를 측정</span></p>
+      <div class="stat-grid" style="margin-top:8px">
+        <div class="stat-tile"><div class="label">전체 평균 낙찰률</div><div class="value">${pc(s.overallWinRate)}</div><div class="sub">선별 없이 아무 공고나</div></div>
+        <div class="stat-tile"><div class="label">저경쟁(≤50) 선별</div><div class="value">${pc(low.winRate)}</div><div class="sub">${low.배수.toFixed(1)}배</div></div>
+        <div class="stat-tile"><div class="label">초저경쟁(≤20) 선별</div><div class="value">${pc(low.win20)}</div><div class="sub">${best.배수.toFixed(1)}배</div></div>
+        <div class="stat-tile"><div class="label">연간 저경쟁 기회</div><div class="value">${low.최근1년}건</div><div class="sub">최근 1년 공략 대상</div></div>
+      </div>
+      <p class="chart-sub" style="margin-top:8px">예정가격은 세 모델 모두 ~0.58%로 동률(준-랜덤이라 더 못 맞힘)이지만, Version_2의 경쟁강도 선별은 낙찰률을 최대 <b>${best.배수.toFixed(1)}배</b> 높입니다 — 실측.</p>
+    </div>`;
+  if (verdict) verdict.innerHTML = `
+    <div class="card" style="margin-top:14px;background:linear-gradient(180deg, rgba(107,63,214,.07), transparent)">
+      <p style="margin:0 0 6px;font-size:12px;font-weight:700;letter-spacing:.04em;color:var(--text-muted);text-transform:uppercase">최종 판정</p>
+      <p style="margin:0;font-size:15px;line-height:1.75">
+        <span class="badge-ai-final">AI최종</span><span class="badge-v2">Version_2</span>
+        &nbsp;<b>최종 사용 버전은 Version_2입니다.</b> 낙찰 확률을 실제로 높이는 것은 예정가격 예측(V1)이 아니라 <b>경쟁강도 선별(V2)</b>이기 때문입니다 —
+        예정가격은 아무리 정확해도(0.58%, 준-랜덤) 낙찰률을 못 올리지만, V2의 저경쟁 선별은 낙찰률을 <b>${best.배수.toFixed(1)}배</b>까지 올립니다(실측).
+        단, V2는 V1의 정확한 <b>기초금액·예정가격·A값 계산 위에서</b> 동작합니다(무효 투찰 방지 + 정밀 투찰).
+      </p>
+    </div>`;
+}
+
 function renderAiPrediction(report) {
   const section = document.getElementById('ai-prediction-summary').closest('section');
   if (!report || report.error || !report.ai) {
@@ -562,7 +597,7 @@ function renderAiPrediction(report) {
     tiles.push({ label: `개선모델 오차율(MAE) ${newBadge}`, value: (report.improved.mae * 100).toFixed(3) + '%', sub: '발주처 예가율 축소추정 반영' });
   }
   if (hasAiFinal) {
-    tiles.push({ label: `${aiFinalBadge} 오차율(MAE)`, value: (report.aiFinal.mae * 100).toFixed(3) + '%', sub: '가중중앙값 — LOO 실측으로 채택/배제 수렴' });
+    tiles.push({ label: `V1최적(가중중앙값) MAE <span class="badge-v1">V1</span>`, value: (report.aiFinal.mae * 100).toFixed(3) + '%', sub: '예정가격 예측 최적(LOO 채택/배제 수렴)' });
   }
   tiles.push({ label: 'AI ±1% 이내 적중률', value: (report.ai.hitRates['±1.0%'] * 100).toFixed(1) + '%', sub: `기존모델 ${(report.baseline.hitRates['±1.0%'] * 100).toFixed(1)}%` });
   el.innerHTML = '';
@@ -585,7 +620,7 @@ function renderAiPrediction(report) {
   container.innerHTML = '';
   const seriesDefs = [['AI', 'AI', seriesColor(0)], ['기존모델', '기존모델', seriesColor(3)]];
   if (hasImproved) seriesDefs.push(['개선모델', '개선모델', seriesColor(2)]);
-  if (hasAiFinal) seriesDefs.push(['AI최종', 'AI최종', seriesColor(4)]);
+  if (hasAiFinal) seriesDefs.push(['V1최적', 'AI최종', seriesColor(4)]);
   const rowH = seriesDefs.length * 18 + 12;
   const w = CHART_W, h = chartData.length * rowH + 10;
   // 오른쪽 여백 140px: 100% 막대 옆에 붙는 "기존모델 100.0%" 같은 값 라벨이 잘리지 않도록 막대를 줄여 확보.
@@ -723,8 +758,8 @@ async function init() {
     document.getElementById('table-toggle').textContent = open ? '월별 원자료 표 보기' : '표 숨기기';
   });
 
-  const [stats, openBids, myBidList, topCompanies, aiReport, aiFullReport] = await Promise.all([
-    loadStats(), loadOpenBids(), loadMyBidList(), loadTopCompanies(), loadAiPredictionReport(), loadAiFullHistoryReport(),
+  const [stats, openBids, myBidList, topCompanies, aiReport, aiFullReport, v2Strategy] = await Promise.all([
+    loadStats(), loadOpenBids(), loadMyBidList(), loadTopCompanies(), loadAiPredictionReport(), loadAiFullHistoryReport(), loadV2Strategy(),
   ]);
   renderStatTiles(stats);
   renderMethodology(stats);
@@ -735,6 +770,7 @@ async function init() {
   renderTopCompanies(topCompanies);
   renderAiPrediction(aiReport);
   renderAiFullHistory(aiFullReport);
+  renderAiFinalVerdict(v2Strategy);
 }
 
 init();
