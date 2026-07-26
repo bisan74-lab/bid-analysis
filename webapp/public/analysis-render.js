@@ -219,6 +219,78 @@ function renderAppliedAdjustments(adjustments) {
   `;
 }
 
+// 종합 권고 배너 — Version_1(가격) + Version_2(선별)을 한 줄 결론으로. (아티팩트 리포트의 hero+verdict 이식)
+function renderRecommendationSummary(rec) {
+  const v = rec.v2;
+  const 판정 = v ? v.종합판정 : null;
+  const 판정색 = { 유리: '#12855a', 보통: cssVar('--text-secondary'), 불리: '#e34948' }[판정] || '#6b3fd6';
+  const 배수 = v && v.확률배수 != null ? v.확률배수.toFixed(1) : null;
+  const rec80 = (rec.tiers || []).find(t => t.probability === 80);
+  const advice = 판정 === '불리'
+    ? '이 공고는 경쟁이 많아 단건 낙찰 가능성이 낮습니다. 투찰은 정확히 넣되, 이 건 하나에 기대지 말고 Version_2가 유리·저경쟁으로 판정하는 공고를 함께 노리세요.'
+    : 판정 === '유리'
+      ? '경쟁이 상대적으로 적어 낙찰 여건이 좋은 편입니다. 아래 권고가로 정확히(무효 없이) 투찰하세요.'
+      : '아래 예정가격 확률 분포와 투찰금액 계산기(A값)로 정밀하게 투찰하세요.';
+  return `
+    <div class="strategy-block" style="border-top:none;padding-top:6px">
+      <div class="strategy-group" style="background:linear-gradient(180deg,rgba(107,63,214,.07),transparent);border-radius:10px;padding:14px 16px">
+        <p class="strategy-title" style="margin-bottom:8px">종합 권고 <span class="strategy-sub">— Version_1(가격 계산) + Version_2(공고 선별)을 한 줄로</span></p>
+        <div style="display:flex;flex-wrap:wrap;gap:14px 26px;align-items:baseline">
+          <div><span style="font-size:11px;color:var(--text-muted)">추정 예정가격</span><br><b style="font-size:16px">${fmtWon(rec.추정예정가격)}</b></div>
+          <div><span style="font-size:11px;color:var(--text-muted)">추천가(낙찰 80%)</span><br><b style="font-size:16px">${fmtWon(rec80 ? rec80.추천금액 : null)}</b></div>
+          ${판정 ? `<div><span style="font-size:11px;color:var(--text-muted)">V2 종합판정</span><br><b style="font-size:16px;color:${판정색}">${판정}${배수 ? ` · 시장 ${배수}배` : ''}</b></div>` : ''}
+        </div>
+        <p style="margin:10px 0 0;font-size:12.5px;color:var(--text-secondary)">${advice}</p>
+      </div>
+    </div>
+  `;
+}
+
+// 예정가격 추정 "방법 비교" — 같은 예정가격을 가중평균 / 가중중앙값 / 분포중앙 세 방법으로 추정해 나란히 비교.
+// (비교 가능한 부분: 세 방법은 같은 목표를 다르게 추정 → 준-랜덤이라 서로 수렴함을 보여줌.)
+function renderJeonggaComparison(rec) {
+  const p50 = (rec.예정가격분포 || []).find(d => d.pct === 50);
+  const rows = [
+    ['가중평균 예가율', rec.추정예정가격, '전체 평균 회귀'],
+    ['가중중앙값 (V1최적)', rec.aiFinal ? rec.aiFinal.예측예정가격 : null, 'MAE 최적 점추정'],
+    ['확률분포 중앙 (P50)', p50 ? p50.예정가격 : null, '분포의 중앙값'],
+  ].filter(r => r[1] != null);
+  if (rows.length < 2) return '';
+  const vals = rows.map(r => r[1]);
+  const spread = Math.max(...vals) - Math.min(...vals);
+  const body = rows.map(r =>
+    `<tr><td style="text-align:left;padding:4px 8px">${r[0]}</td><td style="text-align:right;padding:4px 8px;font-weight:600">${fmtWon(r[1])}</td><td style="padding:4px 8px;color:var(--text-muted)">${r[2]}</td></tr>`).join('');
+  return `
+    <div class="strategy-block">
+      <div class="strategy-group">
+        <p class="strategy-title">예정가격 추정 방법 비교 <span class="strategy-sub">— 같은 예정가격을 세 방법으로 추정. 서로 얼마나 일치하는가</span></p>
+        <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12.5px">
+          <thead><tr style="color:var(--text-muted)"><th style="text-align:left;padding:3px 8px">방법</th><th style="text-align:right;padding:3px 8px">추정 예정가격</th><th style="text-align:left;padding:3px 8px">특징</th></tr></thead>
+          <tbody>${body}</tbody>
+        </table></div>
+        <p style="margin:8px 0 0;font-size:11.5px;color:var(--text-muted)">세 방법의 최대 차이 <b>${fmtWon(spread)}</b> — 예정가격은 복수예비가격 추첨이라 준-랜덤이므로 방법이 달라도 좁게 수렴합니다(추정 신뢰도 방증).</p>
+      </div>
+    </div>
+  `;
+}
+
+// 반드시 확인할 것 — 확률/추천가에 반영되지 않은 리스크 체크리스트. (아티팩트 리포트에서 이식)
+function renderRiskChecklist() {
+  return `
+    <div class="strategy-block">
+      <div class="strategy-group">
+        <p class="strategy-title">반드시 확인할 것 <span class="strategy-sub">— 위 확률·추천가에 반영되지 않은 리스크</span></p>
+        <ul style="margin:6px 0 0;padding-left:18px;font-size:12.5px;color:var(--text-secondary);line-height:1.85">
+          <li><b>A값을 공고문에서 확인</b> — 위 계산기의 A값이 0이면 단순 곱셈이며, 실제 투찰금액과 다를 수 있습니다.</li>
+          <li><b>적격심사 · 신용등급 C</b> — 가격 1순위여도 경영상태·실적 심사를 통과해야 합니다(당사 신용 C는 감점 요인). 소액수의·전자견적(간이심사) 여부를 확인하세요.</li>
+          <li><b>낙찰 ≠ 이익</b> — 낙찰률 약 90% 투찰의 채산성(원가)은 공사별로 별도 판단이 필요합니다.</li>
+          <li>예정가격은 추첨으로 정해지는 <b>준-랜덤</b> 값입니다. 위 수치는 확률적 추정이며 실제 낙찰을 보장하지 않습니다.</li>
+        </ul>
+      </div>
+    </div>
+  `;
+}
+
 // /api/analysis/{postingId}.json 응답 전체를 받아, 인라인 패널/새 탭 페이지 공용 본문 HTML을 만든다.
 function renderAnalysisBody(data) {
   if (data.error) return `<div class="empty-note">${data.error}</div>`;
@@ -236,13 +308,14 @@ function renderAnalysisBody(data) {
       추정 예정가격 <b style="color:var(--text-primary)">${fmtWon(rec.추정예정가격)}</b>
       (기초금액 대비 ${(rec.추정예가율 * 100).toFixed(2)}%, 표본 ${rec.표본수.toLocaleString('ko-KR')}건)
     </div>
+    ${renderRecommendationSummary(rec)}
     ${rec.aiFinal ? `
     <div class="strategy-block">
       <div class="strategy-group">
         <p class="strategy-title"><span class="badge-v1">Version_1</span> 최적 예정가격 예측 (가중중앙값) <span class="strategy-sub">— 4,157건 leave-one-out 실측으로 채택/배제를 수렴. 예정가격 점예측의 최적 (낙찰 확률은 아래 Version_2가 담당)</span></p>
         <div class="tier-grid">
           <div class="tier-tile" style="border-color:#6b5bffaa">
-            <div class="p">AI최종 예측 예정가격</div>
+            <div class="p">V1최적 예측 예정가격</div>
             <div class="amt">${fmtWon(rec.aiFinal.예측예정가격)}</div>
             <div class="ratio">기초금액 대비 ${(rec.aiFinal.예측예가율 * 100).toFixed(3)}% (표본 ${rec.aiFinal.표본수.toLocaleString('ko-KR')}건)</div>
           </div>
@@ -252,6 +325,7 @@ function renderAnalysisBody(data) {
     </div>` : ''}
     ${renderV2(rec)}
     ${renderJeonggaDistribution(rec)}
+    ${renderJeonggaComparison(rec)}
     <div class="tier-grid">
       ${rec.tiers.map((t, i) => `
         <div class="tier-tile" style="border-color:${seriesColor(i)}55">
@@ -265,5 +339,6 @@ function renderAnalysisBody(data) {
     ${renderAppliedAdjustments(rec.appliedAdjustments)}
     ${renderAValueCalculator(rec)}
     ${renderCompanyPredictions(data.topCompanies)}
+    ${renderRiskChecklist()}
   `;
 }
