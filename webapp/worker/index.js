@@ -145,8 +145,37 @@ async function serveAnalysis(env, request, url) {
   if (id.endsWith('.json')) id = id.slice(0, -5);
   id = decodeURIComponent(id);
   const raw = await env.ADMIN_KV.get('analysis:' + id);
-  if (raw) return new Response(raw, { headers: { 'Content-Type': 'application/json' } });
-  return env.ASSETS.fetch(request); // 정적 사전생성 폴백(스냅샷 공고)
+  if (!raw) return env.ASSETS.fetch(request); // 정적 사전생성 폴백(스냅샷 공고)
+
+  let parsed;
+  try { parsed = JSON.parse(raw); } catch (e) { return new Response(raw, { headers: { 'Content-Type': 'application/json' } }); }
+
+  // 최신 포맷(Version_2 추론 포함)이면 그대로 서빙. 없으면 = 구버전 코드로 계산된 스테일 캐시 →
+  // 저장된 item으로 최신 코드(recommendBid: v2/aiFinal/예정가격분포 포함)로 즉석 재계산 후 KV 갱신(자가치유).
+  const JSON_HDR = { headers: { 'Content-Type': 'application/json' } };
+  if (parsed && parsed.recommendation && parsed.recommendation.v2) {
+    return new Response(raw, JSON_HDR);
+  }
+  const item = parsed && parsed.item;
+  if (!item) return new Response(raw, JSON_HDR);
+
+  // 구버전 캐시는 기초금액이 null일 수 있음 → 추정가격×1.1로 복원(g2b 최신 규칙과 동일).
+  if (!item.기초금액 && item.추정가격) {
+    item.기초금액 = Math.round(item.추정가격 * 1.1);
+    item.기초금액추정 = true;
+  }
+  const base = item.기초금액 || item.추정가격;
+  let result;
+  if (!base) {
+    result = { item, error: '기초금액 정보가 없어 분석할 수 없습니다 (예: 전자견적/더미금액 건).' };
+  } else {
+    const rec = analysis.recommendBid(base, item.대업종, { 종목: item.종목, 발주처: item.발주처 });
+    const topCompanies = analysis.getTopCompanies(5).map(c => analysis.predictCompanyBid(c.name, base, item.대업종));
+    result = { item, recommendation: rec, topCompanies };
+  }
+  const body = JSON.stringify(result);
+  try { await env.ADMIN_KV.put('analysis:' + id, body); } catch (e) { /* 갱신 실패해도 응답은 정상 */ }
+  return new Response(body, JSON_HDR);
 }
 
 export default {
