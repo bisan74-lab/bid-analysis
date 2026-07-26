@@ -629,24 +629,27 @@ function renderAiPrediction(report) {
   const seriesDefs = [['AI', 'AI', seriesColor(0)], ['기존모델', '기존모델', seriesColor(3)]];
   if (hasImproved) seriesDefs.push(['개선모델', '개선모델', seriesColor(2)]);
   if (hasAiFinal) seriesDefs.push(['V1최적', 'AI최종', seriesColor(4)]);
-  const rowH = seriesDefs.length * 18 + 12;
-  const w = CHART_W, h = chartData.length * rowH + 10;
-  // 오른쪽 여백 140px: 100% 막대 옆에 붙는 "기존모델 100.0%" 같은 값 라벨이 잘리지 않도록 막대를 줄여 확보.
-  const labelW = 60, innerW = w - labelW - 140;
+  // 막대·간격을 줄여 차트 크기 축소(사용자 요청). 폭도 max-width로 제한.
+  const barH = 11, seriesGap = 14, rowPad = 10;
+  const rowH = seriesDefs.length * seriesGap + rowPad;
+  const w = CHART_W, h = chartData.length * rowH + 8;
+  // 오른쪽 여백 140px: 100% 막대 옆 값 라벨이 잘리지 않도록 막대를 줄여 확보.
+  const labelW = 56, innerW = w - labelW - 140;
+  container.style.maxWidth = '480px';
   const root = svg('svg', { viewBox: `0 0 ${w} ${h}`, style: 'display:block;width:100%;height:auto' });
   chartData.forEach((d, i) => {
-    const y0 = i * rowH + 6;
-    const label = svg('text', { x: labelW - 8, y: y0 + 26, 'text-anchor': 'end', 'font-size': 11, fill: cssVar('--text-secondary') });
+    const y0 = i * rowH + 4;
+    const label = svg('text', { x: labelW - 8, y: y0 + Math.round(rowH / 2) + 2, 'text-anchor': 'end', 'font-size': 10.5, fill: cssVar('--text-secondary') });
     label.textContent = d.band;
     root.appendChild(label);
     seriesDefs.map(([name, key, color]) => [name, d[key], color]).forEach(([name, val, color], j) => {
-      const y = y0 + j * 18;
+      const y = y0 + j * seriesGap;
       const bw = (val / 100) * innerW;
-      const rect = svg('rect', { x: labelW, y, width: Math.max(2, bw), height: 14, rx: 3, fill: color });
+      const rect = svg('rect', { x: labelW, y, width: Math.max(2, bw), height: barH, rx: 3, fill: color });
       rect.addEventListener('mousemove', (e) => showTooltip(e.clientX, e.clientY, `${name} ${d.band} 이내 적중: <b>${val.toFixed(1)}%</b>`));
       rect.addEventListener('mouseleave', hideTooltip);
       root.appendChild(rect);
-      const vLabel = svg('text', { x: labelW + bw + 6, y: y + 11, 'font-size': 10, fill: cssVar('--text-muted') });
+      const vLabel = svg('text', { x: labelW + bw + 6, y: y + barH - 2, 'font-size': 9.5, fill: cssVar('--text-muted') });
       vLabel.textContent = `${name} ${val.toFixed(1)}%`;
       root.appendChild(vLabel);
     });
