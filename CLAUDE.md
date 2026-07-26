@@ -27,6 +27,15 @@
 - **버전 체계**:
   - **Version_1** = 지금까지 만든 검증 중심 모델(기초금액 기준, AI최종 가중중앙값 예정가격 예측, 예정가격 확률분포, A값 계산기 등). 대시보드에서 기존 "NEW" 아이콘을 **`Version_1`** 로 표기.
   - **Version_2** = 복합 요소 기반 확률 추론 모델(예상 경쟁강도 예측, 발주처·공사종류별 낙찰 패턴, 유사/특이 패턴 반영 등으로 낙찰 확률을 끌어올리는 추론). 대시보드에서 **`Version_2`** 아이콘으로 표기.
+  - **★ AI최종 = Version_2** (2026-07-26 확정). "가장 낙찰 확률 높은 최종 사용 버전"은 Version_2 — 예정가격 예측(V1)은 준-랜덤이라 아무리 정확해도 낙찰률을 못 올리지만(MAE ~0.58% 한계), V2의 경쟁강도 선별이 낙찰률을 최대 8.6배 올림(실측). V2는 V1의 정밀 가격계산 위에서 동작(계층 관계). 대시보드 `AI최종`+`Version_2` 배지 병기.
+
+## 최종 버전 구조 (bid-agent 참고)
+
+> **전체 구조·함수·API·수치·자동화는 `PROJECT_STATE.md` 0장에 종합 정리됨 — 후속 에이전트는 거기부터 읽을 것.** 아래는 이번 세션 추가분 포인터만.
+
+- **낙찰 가능성/전략 (신규)**: `lib/analysis.js`의 `computeWinProbability()`(사정률 2종 백테스트)·`computeV2Inference()`(공고별 V2 추론)·`computeV2Strategy()`(경쟁강도 세그먼트·저경쟁 니치)·`validateFullHistory()`(예정가격 4,157건 전수 LOO). CSV `예정가격사정률`/`일순위사정률` 파싱 추가. 상세는 `BIDDING_WIN_PROBABILITY.md`·`BIDDING_STRATEGY_GUIDE.md`.
+- **탭 3개**: `index.html`(대시보드) / `win-probability.html`(낙찰가능성 V1 백테스트) / `win-probability-v2.html`(낙찰전략 V2). API: `/api/win-probability.json`·`/api/v2-strategy.json` (server.js·build-static.js·worker 공통, 파일 없으면 즉석 계산).
+- **자동화 (신규)**: `.github/workflows/deploy.yml`(main push→자동 `wrangler deploy`, 검증 완료)·`refresh-bids.yml`(매일 07시 나라장터 스냅샷). Secrets: `CLOUDFLARE_API_TOKEN`·`CLOUDFLARE_ACCOUNT_ID`·`G2B_SERVICE_KEY`. **이제 main 병합/푸시하면 자동 배포됨.**
 
 ## 회사 핵심 지표 (최신 확인서 기준)
 

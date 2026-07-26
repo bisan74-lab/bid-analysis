@@ -1,7 +1,52 @@
 # 프로젝트 현황 종합 문서 (AI 인수인계용)
 
-**마지막 갱신**: 2026-07-20 (완전 클라우드 자동 갱신 + 신규 입찰 카카오 알림까지 배포·검증 완료 — 5.7장)
+**마지막 갱신**: 2026-07-26 (Version_1/Version_2 체계 확정, AI최종=Version_2 판정, 낙찰가능성 V1/V2 탭, GitHub Actions 자동배포까지 프로덕션 반영 — 0장 요약 참고)
 **작성 목적**: 이 문서 하나만 읽어도(PROGRESS.md의 세션별 기록을 다 훑지 않아도) 이 프로젝트가 무엇이고, 지금 어디까지 됐고, 무엇이 남았는지 판단할 수 있도록 작성한 종합 스냅샷. 세부 변경 이력/시행착오는 `PROGRESS.md`에, 짧은 운영 메모는 `CLAUDE.md`에 있음 — 이 문서는 "현재 상태"를 한 번에 보여주는 것이 목적.
+
+---
+
+## 0. 최종 버전 요약 (bid-agent 인수인계 핵심)
+
+> **후속 에이전트(bid-agent)는 이 0장만 읽어도 "최종 버전"의 전체 구조를 파악할 수 있게 작성함.** 세부는 아래 각 장 + 별도 문서 참고.
+
+### 0.1 버전 체계 & 최종 결정 (2026-07-25~26 확정)
+- **Version_1 = 예정가격/투찰금액 정밀 계산** (검증 중심). 기초금액 기준 정립 + 예정가격 점예측(가중중앙값=`V1최적`) + 예정가격 확률분포(P10~P90) + A값 투찰금액 계산기. 대시보드 `Version_1` 아이콘(주황 `.badge-v1`).
+- **Version_2 = 복합 요소 낙찰 확률 추론** (확률 극대화). 예상 경쟁강도·낙찰확률·발주처 투찰성향·유사사례·종합판정. 대시보드 `Version_2` 아이콘(보라-그린 `.badge-v2`).
+- **★ AI최종 = Version_2** (`.badge-ai-final` + `Version_2` 배지 나란히). **판정 근거(실측)**: 예정가격 예측은 세 모델 모두 MAE ~0.58%로 동률이고 복수예비가격 추첨이라 **준-랜덤 → 낙찰 확률을 못 올림**. 반면 Version_2의 **경쟁강도 선별**은 낙찰률을 **최대 8.6배**(참여 ≤20개사 13.85% vs 전체 1.60%) 올림. 그래서 "가장 낙찰 확률 높은 최종 버전"은 Version_2. 단 **V2는 V1의 정확한 가격 계산 위에서 동작**(무효 투찰 방지 + 정밀 투찰) — 둘은 경쟁이 아니라 계층 관계.
+
+### 0.2 실제 입찰 산정 로직 (정석 — 녹취+제도 검증 완료)
+1. 발주처가 **기초금액**(부가세 포함) 공개. 나라장터 목록조회는 추정가격(부가세 제외)만 주므로 **기초금액=추정가격×1.1**로 복원(과거 9,636건 94.7%가 정확히 1.1).
+2. 기초금액 ±2%(국가)/±3%(지방)에서 **15개 복수예비가격**(난수 사정률).
+3. 입찰자별 2개 선택 → 전체 **다빈도 4개 산술평균 = 예정가격**.
+4. **투찰금액 = (예정가격 − A값) × 낙찰하한율 + A값** (A값=노무비·보험료·산업안전보건관리비 등 낙찰률 할인 제외 고정 실비, 공고문에서 확인).
+
+### 0.3 코드 맵 — `webapp/lib/analysis.js` 핵심 함수
+- `recommendBid(기초금액, 대업종, {종목, 발주처})` → 공고 1건 종합 분석. 반환: `{기초금액, 추정예정가격, 추정예가율, 예정가격분포[P10~P90], aiFinal(V1최적 가중중앙값), v2(Version_2 추론), tiers[낙찰확률별], stableRegression, aggressiveCluster, appliedAdjustments}`.
+- `predictJeonggaFinal(feature)` = V1최적 예정가격(풀 가중중앙값, LOO). `computeJeonggaDistribution()` = 예정가격 확률분포. `computeTuchalAmount(예정가격,낙찰하한율,A값)` = 투찰금액.
+- `computeV2Inference({기초금액,대업종,종목,발주처})` = **Version_2 per-공고 추론**(예상참여·예상낙찰확률·종합판정·유사사례·특이신호).
+- `computeV2Strategy()` = **Version_2 전략 집계**(경쟁강도 구간별 낙찰률·저경쟁 니치·타깃 발주처).
+- `computeWinProbability()` = 낙찰 가능성 백테스트(사정률 2종 기반). `validateFullHistory()` = 예정가격 예측 4,157건 전수 LOO 검증.
+- 데이터: `parseHistory()`가 CSV에 `예정가격사정률`(실제 추첨 사정률)·`일순위사정률`(낙찰자 투찰 추측치) 파싱 — 백테스트 핵심 재료.
+
+### 0.4 API 엔드포인트 (server.js = 로컬, worker/index.js = 배포, build-static.js = 정적)
+`/api/analysis/:id.json`(공고별 종합), `/api/win-probability.json`(V1 백테스트), `/api/v2-strategy.json`(V2 전략), `/api/ai-prediction/report.json`(150건 채점), `/api/ai-prediction/full-report.json`(4,157건 전수), `/api/open-bids.json`·`/api/mybid-list.json`(진행중/수주가능), `/api/top-companies.json`. 인증: `/` 와 `/api/*`는 세션 로그인 필요(`*.html`은 셸만 무인증, 데이터는 API에서만).
+
+### 0.5 페이지/탭 (public/)
+탭 3개: **분석 대시보드**(`index.html`) | **낙찰 가능성 V1**(`win-probability.html`, 백테스트) | **낙찰 전략 V2**(`win-probability-v2.html`, 경쟁강도·저경쟁 니치). 공고 상세: `analysis.html?id=` (공용 렌더 `analysis-render.js` → `renderAnalysisBody`: V1최적 예정가격 + AI최종·V2 낙찰확률 추론 + 예정가격분포 + tiers + 전략밴드 + A값계산기 + TOP5).
+
+### 0.6 자동화 (완전 무인)
+- **GitHub Actions**(`.github/workflows/`): `deploy.yml`(main push→build+`wrangler deploy`, 검증 완료), `refresh-bids.yml`(매일 07시 KST 나라장터→커밋 스냅샷). Secrets: `CLOUDFLARE_API_TOKEN`·`CLOUDFLARE_ACCOUNT_ID`·`G2B_SERVICE_KEY`.
+- **Cloudflare Worker cron**: 매일 08시 KST 나라장터→KV 갱신 + 신규 입찰 카카오 알림. 배포: `https://bid-analysis.bisan74.workers.dev`.
+
+### 0.7 검증된 핵심 수치 (팩트)
+- 기초금액=추정가격×1.1 (94.7% 정확 일치). 예정가격 예측 MAE ~0.58%(전수·표본 일치, 준-랜덤 한계). 단건 낙찰확률 ~1.4%(기본확률 0.37%의 4.2배). 저경쟁(참여≤50) 낙찰률 9.23%(5.8배), ≤20개사 13.85%(8.6배). 낙찰자 마진 중앙값 0.0095%p(승부는 확률게임). TOP업체 실적(연 6~7건)과 "연 400~500건×1.4%" 정합.
+
+### 0.8 규칙 (CLAUDE.md 반영)
+- **아이건설넷**: 전면금지 해제 → 확인-후-접근(대량 2회 확인). 정상 브라우저·정상속도만, 봇탐지 기만용 스텔스/위조는 안 함(막히면 수동/공식API 폴백).
+- **분석 철학**: "사실기반만" → "복합요소 기반 확률추론"(단, 데이터 조작·미검증을 검증된 사실로 단정 금지 — 검증 상태는 투명 표시).
+
+### 0.9 문서 맵
+- `BIDDING_PRICE_METHOD.md`(예비가격·예정가격·A값 산정 정석 + 녹취 전문), `BIDDING_WIN_PROBABILITY.md`(낙찰 가능성 백테스트 상세), `BIDDING_STRATEGY_GUIDE.md`(저경쟁 니치 실행 전략), `CLAUDE.md`(운영 규칙·포인터), `PROGRESS.md`(세션별 이력).
 
 ---
 
