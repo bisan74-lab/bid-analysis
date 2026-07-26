@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>입찰 관리 — 케이알에스건설 입찰 분석 대시보드</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div>
+      <h1>입찰 관리</h1>
+      <p id="mgr-updated">불러오는 중…</p>
+    </div>
+    <div style="display:flex;align-items:center;gap:14px">
+      <a href="/" class="toggle-link">← 대시보드</a>
+    </div>
+  </header>
+
+  <nav class="tab-nav">
+    <a href="/" class="tab-link">분석 대시보드</a>
+    <a href="/bid-manager.html" class="tab-link active">입찰 관리</a>
+    <a href="/win-probability.html" class="tab-link">낙찰 가능성 <span class="badge-v1">V1</span></a>
+    <a href="/win-probability-v2.html" class="tab-link">낙찰 전략 <span class="badge-v2">V2</span></a>
+  </nav>
+
+  <section>
+    <div id="mgr-summary" class="stat-grid"></div>
+  </section>
+
+  <section>
+    <div class="mgr-controls">
+      <div class="ctrl-group">
+        <span class="ctrl-label">업종</span>
+        <button class="chip-btn active" data-filter="업종:전체">전체</button>
+        <button class="chip-btn" data-filter="업종:포장">포장</button>
+        <button class="chip-btn" data-filter="업종:상하수도">상하수도</button>
+      </div>
+      <div class="ctrl-group">
+        <span class="ctrl-label">V2 판정</span>
+        <button class="chip-btn active" data-filter="판정:전체">전체</button>
+        <button class="chip-btn" data-filter="판정:유리">유리</button>
+        <button class="chip-btn" data-filter="판정:보통">보통</button>
+        <button class="chip-btn" data-filter="판정:불리">불리</button>
+      </div>
+      <div class="ctrl-group">
+        <button id="watch-toggle" class="chip-btn">★ 관심만</button>
+      </div>
+      <div class="ctrl-group" style="margin-left:auto">
+        <span class="ctrl-label">정렬</span>
+        <select id="sort-select" class="mgr-select">
+          <option value="마감임박">마감 임박순</option>
+          <option value="V2유리">V2 유리순</option>
+          <option value="금액">기초금액 큰순</option>
+        </select>
+      </div>
+    </div>
+
+    <p class="section-sub" style="margin:4px 0 10px">
+      앞으로 투찰·분석할 입찰을 한 곳에서 관리합니다. 행을 클릭하면 상세분석(예정가격·투찰금액·Version_2 낙찰확률)이 새 탭으로 열리고,
+      ☆를 눌러 <b>관심 표시</b>하면 이 브라우저에 저장됩니다. 나라장터 자동 갱신(매일 08시)으로 목록이 최신화됩니다.
+    </p>
+
+    <div class="table-scroll">
+      <table class="data-table mgr-table">
+        <thead><tr>
+          <th style="width:34px"></th><th>공고명</th><th>발주처</th><th>지역</th>
+          <th style="text-align:right">기초금액</th><th style="text-align:right">마감</th>
+          <th>V2 판정</th><th style="text-align:right">예상경쟁</th><th>원문</th>
+        </tr></thead>
+        <tbody id="mgr-tbody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer class="page-footer">
+    (주)케이알에스건설 내부 분석용 · 진행중 입찰: 나라장터(g2b.go.kr) OpenAPI 자동 수집 · V2 판정은 확률적 추론이며 실제 낙찰을 보장하지 않습니다. 실제 투찰 결정은 최신 공고 조건을 반드시 재확인하세요.
+  </footer>
+</div>
+
+<script src="bid-manager.js"></script>
+</body>
+</html>
